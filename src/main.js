@@ -7,7 +7,32 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "0.0";
+const APP_VERSION = "0.1";
+
+// #region JSDoc Type definitions - to make my life easier
+
+/** This is the structure of the JSON file that gets converted from GDC's 
+    full_schedule.csv to schedule.json by our tools/tool.cjs script
+ * @typedef { Object } GDCEvent
+ * @property { string } session_title
+ * @property { string } start_time
+ * @property { string } end_time
+ * @property { string } duration
+ * @property { string } day
+ * @property { string } description
+ * @property { string } takeaway
+ * @property { string } intended_audience
+ * @property { string } location
+ * @property { string } tracks
+ * @property { string } format
+ * @property { string } passes
+ * @property { string } speakers
+ * @property { string } gdc_vault_recording
+ */
+
+// #endregion
+
+// #region Constants
 
 const COLORS = 
 {
@@ -52,21 +77,32 @@ const ICONS = {
     fa_circle: [ "fa-solid", "fa-circle" ],
     fa_check: [ "fa-solid", "fa-check" ],
     fa_chevron_down: [ "fa-solid", "fa-chevron-down" ],
+    fa_chevron_right: [ "fa-solid", "fa-chevron-down", "fa-rotate-270" ],
+    fa_clock: [ "fa-solid", "fa-clock" ],
+    fa_ellipsis_horizontal: [ "fa-solid", "fa-ellipsis-vertical", "fa-rotate-90" ],
     fa_ellipsis_vertical: [ "fa-solid", "fa-ellipsis-vertical" ],
     fa_filter: [ "fa-solid", "fa-filter" ],
     fa_floppy_disk: [ "fa-solid", "fa-floppy-disk" ],
     fa_hourglass: [ "fa-solid", "fa-hourglass" ],
+    fa_info: [ "fa-solid", "fa-info" ],
     fa_location: [ "fa-solid", "fa-location-dot" ],
     fa_magnifying_glass: [ "fa-solid", "fa-magnifying-glass" ],
     fa_paper_plane: [ "fa-solid", "fa-paper-plane" ], 
     fa_plus: ["fa-solid", "fa-plus" ],
     fa_ticket: [ "fa-solid", "fa-ticket" ],
+    fa_trash: [ "fa-solid", "fa-trash" ],
     fa_video: ["fa-solid", "fa-video" ],
 };
 
 const LAYOUT = { MOBILE: "mobile", DESKTOP: "desktop" };
 const MOBILE_BREAKPOINT = 820;
 var current_layout = window.innerWidth <= MOBILE_BREAKPOINT ? LAYOUT.MOBILE : LAYOUT.DESKTOP;
+
+const EVENT_SOURCE = { GDC: "GDC", CUSTOM: "CUSTOM" };
+
+// #endregion
+
+// #region Base Utility Functions
 
 /** Utility function to set hover color. Ensure to set the default color first before calling this function
  * @param {HTMLElement} element 
@@ -119,6 +155,40 @@ function setHoverBorder( element, borderWidth, borderColor )
     element.addEventListener( 'pointerleave', setBorderDefault );
 }
 
+/** Get the duration between two dates in the specified units
+ * @param {Date}   start_date The start date
+ * @param {Date}   end_date   The end date
+ * @param {string} units      The units in which the duration is required. Valid values are "s", "m", "h", "d"
+ * @returns Duration between the two dates in the specified units
+ */
+function getDateDuration( start_date, end_date, units = "s" ) {
+    const duration = end_date - start_date;
+    switch( units ) {
+        case "s": return duration / 1000;
+        case "m": return duration / ( 1000 * 60 );
+        case "h": return duration / ( 1000 * 60 * 60 );
+        case "d": return duration / ( 1000 * 60 * 60 * 24 );
+    }
+    console.error( "Invalid units specified")
+    return NaN;
+}
+
+/** Get the hash of the given string
+ * @param {string} str The string to hash
+ * @returns The hash of the string
+ */
+function getStringHash( str ) {
+    let hash = 0;
+    if( str.length > 0 ) {
+        for( let i = 0; i < str.length; i++ ) {
+            let ch = str.charCodeAt( i );
+            hash = ( ( hash << 5 ) - hash ) + ch;
+            hash |= 0;
+        }
+    }
+    return hash;
+}
+
 /** Get the time string in the format "hh:mm AM/PM"
  * @returns {string} time string in the format "hh:mm AM/PM"
  */
@@ -126,21 +196,136 @@ Date.prototype.getTimeStringHHMM12 = function() {
     return this.toLocaleTimeString( [], { hour: '2-digit', minute: '2-digit', hour12: true } );
 }
 
-/** Get the hash of the string
- * @returns {number}
+// #endregion
+
+// #region Gameplan Event
+
+/** This is the structure that gameplan uses to represent an event as event may come from different sources
+ * @typedef  { Object }  GameplanEvent
+ * @property { string }  title
+ * @property { string }  description
+ * @property { string }  speakers
+ * @property { string }  location
+ * @property { Date }    start_time
+ * @property { Date }    end_time
+ * @property { string }  takeaway
+ * @property { string }  intended_audience
+ * @property { string }  tracks
+ * @property { string }  format
+ * @property { string }  passes
+ * @property { boolean } gdc_vault_recording
+ * @property { string }  source
+ * @property { number }  hash
  */
-String.prototype.getHash = function() 
-{
-    let hash = 0;
-    if( this.length > 0 ) {
-        for( let i = 0; i < this.length; i++ ) {
-            let ch = this.charCodeAt( i );
-            hash = ( ( hash << 5 ) - hash ) + ch;
-            hash |= 0;
-        }
-    }
-    return hash;
+
+var GameplanUtils = {
+
+    /** Convert the GDC event to a gameplan event
+     * 
+     * @param {GDCEvent} gdc_event The GDC event to convert
+     * @returns {GameplanEvent} The converted gameplan event
+     */
+    fromGDCEvent: function( gdc_event ) {
+        /**
+         * @type {GameplanEvent}
+         */
+        let gameplan_event = {};
+        gameplan_event.title = gdc_event.session_title;
+        gameplan_event.description = gdc_event.description;
+        gameplan_event.speakers = gdc_event.speakers;
+        gameplan_event.location = gdc_event.location;
+        gameplan_event.start_time = new Date( gdc_event.start_time );
+        gameplan_event.end_time = new Date( gdc_event.end_time );
+        gameplan_event.takeaway = gdc_event.takeaway;
+        gameplan_event.intended_audience = gdc_event.intended_audience;
+        gameplan_event.tracks = gdc_event.tracks;
+        gameplan_event.format = gdc_event.format;
+        gameplan_event.passes = gdc_event.passes;
+        gameplan_event.gdc_vault_recording = gdc_event.gdc_vault_recording == "Recorded";
+        gameplan_event.source = EVENT_SOURCE.GDC;
+        gameplan_event.hash = getStringHash( gameplan_event.title );
+        return gameplan_event
+    },
+
+    /** Get the duration of the gameplan event
+     * @param {GameplanEvent} event 
+     * @param {string} units
+     */
+    getDuration: function( event, units ) {
+        return getDateDuration( event.start_time, event.end_time, units );
+    },
+
+    /** Did the event get cancelled
+     * @param { GameplanEvent } event 
+     * @returns True if the event got cancelled, false otherwise
+     */
+    didGetCancelled: function( event ) {
+        return isNaN( event.start_time.getTime() );
+    },
+
+    /** Get the gameplan event from the hash
+     * @param {number} hash 
+     * @returns {GameplanEvent} returns the gameplan event from the hash
+     */
+    getFromHash: function( hash ) {
+        return all_gameplan_events[ gameplan_events_hashmap.get( hash ) ];
+    },
 };
+
+// convert all the GDC events to gameplan events
+import gdc_schedule from "./schedule.json";
+
+/** All gameplan events are stored here
+ * @type {GameplanEvent[]}
+ */
+var all_gameplan_events = [];
+
+/** A structure to quickly find the index of a gameplan event stored in all_gameplan_events
+ * @type {Map<number, number>}
+ */
+var gameplan_events_hashmap = new Map();
+gdc_schedule.forEach( gdc_event => {
+    let gameplan_event = GameplanUtils.fromGDCEvent( gdc_event );
+    all_gameplan_events.push( gameplan_event );
+    gameplan_events_hashmap.set( gameplan_event.hash, all_gameplan_events.length - 1 );
+} );
+
+// #endregion
+
+// #region User data management
+
+/** The hashes of the events that the user has saved
+ * @type { number[] }
+ */
+var planned_events = [];
+
+// Load the planned events from the browser's local data storage
+if( localStorage.getItem( 'planned_events' ) != null ) {
+    planned_events = JSON.parse( localStorage.getItem( 'planned_events' ) );
+}
+
+// A proxy is used to monitor changes made to the planned_events array and fire an event when the array is updated
+const  plannedEventsUpdatedEvent = new Event( 'plannedEventsUpdated' );
+var planned_events_proxy = new Proxy( planned_events, { 
+    set( target, property, value ) {
+        target[ property ] = value;
+        document.dispatchEvent( plannedEventsUpdatedEvent );
+        return true;
+    }, 
+    deleteProperty( target, property ) {
+        delete target[ property ];
+        document.dispatchEvent( plannedEventsUpdatedEvent );
+        return true;
+    }
+} );
+planned_events = planned_events_proxy; // All future operations must used push, pop, splice etc. NO DIRECT ASSIGNMENTS
+
+// Save the planned events to the browser's local data storage
+document.addEventListener( 'plannedEventsUpdated', function() { 
+    localStorage.setItem( 'planned_events', JSON.stringify( planned_events ) );
+} );
+
+// #endregion
 
 // #region Build Base UI Layout
 
@@ -336,73 +521,103 @@ function stopResizePane()
 
 // #endregion
 
-// #region Display header options menu when the header options button is clicked
+// #region Options Menu
 
-const HEADER_OPTIONS_MENU_ITEMS = 
-[
-    { "text": "Save",   "icon": ICONS.fa_floppy_disk,           "action": function() { alert( "save" );     } },
-    { "text": "Export", "icon": ICONS.fa_arrow_right_from_bracket, "action": function() { alert( "export" );   } },
-];
+/**
+ * @typedef  { Object }   OptionsMenuItem
+ * @property { string }   text
+ * @property { string[] } icon
+ * @property { function } action
+ */
 
-var header_options_menu = document.createElement( 'div' );
-header_options_menu.style.position = "absolute";
-header_options_menu.style.display = "none";
-header_options_menu.style.zIndex = "10";
-header_options_menu.style.color = COLORS.LIGHT_0;
-header_options_menu.style.backgroundColor = COLORS.SURFACE_10;
-header_options_menu.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
-document.body.appendChild( header_options_menu );
+var last_options_menu_instigator = null;
 
-header_options_button.addEventListener( 'click', function() { 
-    header_options_menu.style.display = header_options_menu.style.display == "none" ? "block" : "none";
-    if( header_options_menu.style.display == "block" ) {
-        let options_button_rect = header_options_button.getBoundingClientRect();
-        let options_menu_rect = header_options_menu.getBoundingClientRect();
-        header_options_menu.style.top = options_button_rect.top + "px";
-        header_options_menu.style.left = ( options_button_rect.left - options_menu_rect.width - 6 ) + "px";
-    }
-} );
+var options_menu = document.createElement( 'div' );
+options_menu.style.position = "absolute";
+options_menu.style.display = "none";
+options_menu.style.zIndex = "20";
+options_menu.style.color = COLORS.LIGHT_0;
+options_menu.style.backgroundColor = COLORS.SURFACE_10;
+options_menu.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
+document.body.appendChild( options_menu );
 
-HEADER_OPTIONS_MENU_ITEMS.forEach( item => { 
-    let menu_item = document.createElement( 'div' );
-    menu_item.style.padding = "10px 15px";
-    menu_item.style.display = "flex";
-    menu_item.style.alignItems = "center";
-    menu_item.style.cursor = "pointer";
-    setHoverColor( menu_item, COLORS.PRIMARY_0 );
-    setHoverBgColor( menu_item, COLORS.SURFACE_20 );
-    header_options_menu.appendChild( menu_item );
+/**
+ * 
+ * @param { OptionsMenuItem[] } options     The list of menu items to display
+ * @param { HTMLElement }       instigator  The element that triggered the options menu
+ */
+function openOptionsMenu( options, instigator ) {
+    options_menu.innerHTML = ""; // clear any existing menu items
+    
+    options.forEach( item => { 
+        let menu_item = document.createElement( 'div' );
+        menu_item.style.padding = "10px 15px";
+        menu_item.style.display = "flex";
+        menu_item.style.alignItems = "center";
+        menu_item.style.cursor = "pointer";
+        setHoverColor( menu_item, COLORS.PRIMARY_0 );
+        setHoverBgColor( menu_item, COLORS.SURFACE_20 );
+        options_menu.appendChild( menu_item );
 
-    let icon = document.createElement( 'i' );
-    icon.classList.add( ...item.icon );
-    icon.style.color = "inherit";
-    icon.style.fontSize = "20px";
-    menu_item.appendChild( icon );
+        let icon = document.createElement( 'i' );
+        icon.classList.add( ...item.icon );
+        icon.style.color = "inherit";
+        icon.style.fontSize = "20px";
+        menu_item.appendChild( icon );
 
-    let text = document.createElement( 'a' );
-    text.textContent = item.text;
-    text.style.color = "inherit";
-    text.style.fontSize = "16px";
-    text.style.marginLeft = "20px";
-    text.style.fontFamily = FONTS.IBM_PLEX_MONO;
-    menu_item.appendChild( text );
+        let text = document.createElement( 'a' );
+        text.textContent = item.text;
+        text.style.color = "inherit";
+        text.style.fontSize = "16px";
+        text.style.marginLeft = "20px";
+        text.style.fontFamily = FONTS.IBM_PLEX_MONO;
+        menu_item.appendChild( text );
 
-    menu_item.addEventListener( 'click', item.action );
-} );
+        menu_item.addEventListener( 'click', item.action );
+    } );
+
+    options_menu.style.display = "block";
+    let instigator_rect = instigator.getBoundingClientRect();
+    let menu_rect = options_menu.getBoundingClientRect();
+    options_menu.style.top = instigator_rect.top + "px";
+    options_menu.style.left = ( instigator_rect.left - menu_rect.width - 6 ) + "px";
+
+    last_options_menu_instigator = instigator;
+}
 
 document.addEventListener( 'click', function( e ) {
-    if( header_options_menu.contains( e.target ) || header_options_button.contains( e.target ) ) {
-        return;
+    if( options_menu.style.display != "none" && last_options_menu_instigator != null && !last_options_menu_instigator.contains( e.target ) ) {
+        options_menu.style.display = "none";
+        last_options_menu_instigator = null;
     }
-    header_options_menu.style.display = "none";
+} );
+
+// #endregion
+
+// #region Header Options Menu
+
+/** A list of menu items that can be used by the header options button
+ * @type { OptionsMenuItem[] }
+ */
+const HEADER_OPTIONS_MENU_ITEMS = 
+[
+    { text: "Save",   icon: ICONS.fa_floppy_disk,               action: function() { alert( "save" );     } },
+    { text: "Export", icon: ICONS.fa_arrow_right_from_bracket,  action: function() { alert( "export" );   } },
+];
+
+// add the event listener to the header options button to open the options menu
+header_options_button.addEventListener( 'click', function() {
+    openOptionsMenu( HEADER_OPTIONS_MENU_ITEMS, header_options_button );
 } );
 
 // #endregion
 
 // #region Add day selectors and manage current selected day
 
-const DAYS = [ "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY" ];
-var current_selected_day = DAYS[ 0 ]; // @TODO: Automatically set this to the current day (based on the dates between 2025-03-17 to 2025-03-21)
+const DAYS = [ "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY" ];
+var current_selected_day = DAYS[ 1 ]; // @TODO: Automatically set this to the current day (based on the dates between 2025-03-17 to 2025-03-21)
+
+if( false ) {
 
 var days_container = document.createElement( 'div' );
 days_container.style.display = "flex";
@@ -417,8 +632,9 @@ day_highlighter.style.width = "60%";
 day_highlighter.style.height = "3px";
 day_highlighter.style.backgroundColor = "inherit";
 
-DAYS.forEach( day => {
+for( let i = 1; i <= 5; i++ ) {
     const ELEMENT_SIZE = 40;
+    let day = DAYS[ i ];
 
     let day_div = document.createElement( 'div' );
     day_div.id = day;
@@ -450,7 +666,8 @@ DAYS.forEach( day => {
             current_selected_day = day;
         }
     } );
-});
+};
+}
 
 // #endregion
 
@@ -530,12 +747,9 @@ pane_right_content.appendChild( events_container );
 
 /**
  * 
- * @param {{"session title": string; "start time": string; "end time": string; duration: string; day: string; description: string; takeaway: string; "intended audience": string; location: string; tracks: string; format: string; passes: string; speakers: string; "gdc vault recording": string;}} event 
+ * @param {GameplanEvent} event 
  */
 function buildEventCard( event ) {
-    let start_time = new Date( event[ "start time" ] );
-    let end_time = new Date( event[ "end time" ] );
-
     let event_card = document.createElement( 'div' );
     event_card.style.margin = "20px 0px";
     event_card.style.display = "flex";
@@ -587,7 +801,7 @@ function buildEventCard( event ) {
     event_tags_container.appendChild( event_track );
 
     let event_title = document.createElement( 'a' );
-    event_title.textContent = event[ "session title" ];
+    event_title.textContent = event.title;
     event_title.style.color = COLORS.LIGHT_0;
     event_title.style.fontSize = "16px";
     event_title.style.fontWeight = "500";
@@ -604,7 +818,7 @@ function buildEventCard( event ) {
     event_title_info_container.appendChild( event_speakers );
 
     let event_time = document.createElement( 'a' );
-    event_time.textContent = `${ event.day } [${ start_time.getTimeStringHHMM12() } - ${ end_time.getTimeStringHHMM12() }]`;
+    event_time.textContent = `${ DAYS[ event.start_time.getDay() ] } [${ event.start_time.getTimeStringHHMM12() } - ${ event.end_time.getTimeStringHHMM12() }]`;
     event_time.style.color = COLORS.PRIMARY_50;
     event_time.style.fontSize = "13px";
     event_time.style.fontWeight = "400";
@@ -612,26 +826,19 @@ function buildEventCard( event ) {
     event_time.style.marginTop = "6px";
     event_title_info_container.appendChild( event_time );
 
-    let event_add_button = document.createElement('div');
-    event_add_button.style.width = "30px";
-    event_add_button.style.height = "30px";
-    event_add_button.style.borderRadius = "50%";
-    event_add_button.style.display = "flex";
-    event_add_button.style.justifyContent = "center";
-    event_add_button.style.alignItems = "center";
-    event_add_button.style.cursor = "pointer";
-    event_add_button.style.color = COLORS.LIGHT_0;
-    event_add_button.style.backgroundColor = COLORS.TRANSPARENT;
-    event_add_button.style.border = "2px solid " + COLORS.LIGHT_0;
-    setHoverBgColor( event_add_button, COLORS.PRIMARY_0 );
-    setHoverColor( event_add_button, COLORS.DARK_0 );
-    setHoverBorder( event_add_button, 2, COLORS.PRIMARY_0 );
-    event_primary_info_container.appendChild( event_add_button );
+    let event_subscribe_button = document.createElement('div');
+    event_subscribe_button.style.width = "30px";
+    event_subscribe_button.style.height = "30px";
+    event_subscribe_button.style.borderRadius = "50%";
+    event_subscribe_button.style.display = "flex";
+    event_subscribe_button.style.justifyContent = "center";
+    event_subscribe_button.style.alignItems = "center";
+    event_subscribe_button.style.cursor = "pointer";
+    event_primary_info_container.appendChild( event_subscribe_button );
 
-    let event_add_icon = document.createElement( 'i' );
-    event_add_icon.classList.add( ...ICONS.fa_plus );
+    let event_add_icon = document.createElement( 'i' ); // icon class list is added in the updateSubscribeButton function
     event_add_icon.style.fontSize = "16px";
-    event_add_button.appendChild( event_add_icon );
+    event_subscribe_button.appendChild( event_add_icon );
 
     let event_more_info_container = document.createElement( 'div' );
     event_more_info_container.style.padding = "20px 20px 20px 20px";
@@ -669,7 +876,9 @@ function buildEventCard( event ) {
     }
     addMoreInfoTag( event.location, ICONS.fa_location );
     addMoreInfoTag( event.passes, ICONS.fa_ticket );
-    addMoreInfoTag( event[ "gdc vault recording" ], ICONS.fa_video );
+    if( event.gdc_vault_recording ) {
+        addMoreInfoTag( "Recorded", ICONS.fa_video );
+    }
 
     if ( event.description.length > 0 ) {
         let event_description_title = document.createElement( 'a' );
@@ -711,7 +920,7 @@ function buildEventCard( event ) {
         event_more_info_container.appendChild( event_takeaway );
     }
 
-    if ( event[ "intended audience" ].length > 0 ) {
+    if ( event.intended_audience.length > 0 ) {
         let event_intended_audience_title = document.createElement( 'a' );
         event_intended_audience_title.textContent = "~ Intended Audience";
         event_intended_audience_title.style.color = COLORS.PRIMARY_50;
@@ -723,7 +932,7 @@ function buildEventCard( event ) {
         event_more_info_container.appendChild( event_intended_audience_title );
 
         let event_intended_audience = document.createElement( 'a' );
-        event_intended_audience.textContent = event[ "intended audience" ];
+        event_intended_audience.textContent = event.intended_audience;
         event_intended_audience.style.color = COLORS.LIGHT_0;
         event_intended_audience.style.fontSize = "14px";
         event_intended_audience.style.fontWeight = "400";
@@ -736,20 +945,213 @@ function buildEventCard( event ) {
         event_more_info_container.style.display = event_more_info_container.style.display == "none" ? "flex" : "none";
     } );
 
+    function updateSubscribeButton() {
+        if( planned_events.includes( event.hash ) ) {
+            event_add_icon.classList.remove( ...ICONS.fa_plus );
+            event_add_icon.classList.add( ...ICONS.fa_check );
+            event_subscribe_button.style.backgroundColor = COLORS.PRIMARY_0;
+            event_subscribe_button.style.color = COLORS.DARK_0;
+            event_subscribe_button.style.borderColor = "2px solid" + COLORS.PRIMARY_0;
+            setHoverBgColor( event_subscribe_button, COLORS.PRIMARY_10 );
+            setHoverColor( event_subscribe_button, COLORS.DARK_0 );
+            setHoverBorder( event_subscribe_button, 2, COLORS.PRIMARY_10 );
+        }
+        else {
+            event_add_icon.classList.remove( ...ICONS.fa_check );
+            event_add_icon.classList.add( ...ICONS.fa_plus );
+            event_subscribe_button.style.color = COLORS.LIGHT_0;
+            event_subscribe_button.style.backgroundColor = COLORS.TRANSPARENT;
+            event_subscribe_button.style.border = "2px solid " + COLORS.LIGHT_0;
+            setHoverBgColor( event_subscribe_button, COLORS.PRIMARY_0 );
+            setHoverColor( event_subscribe_button, COLORS.DARK_0 );
+            setHoverBorder( event_subscribe_button, 2, COLORS.PRIMARY_0 );
+        }
+    }
+
+    event_subscribe_button.addEventListener( 'click', function( e ) { 
+        e.stopPropagation();
+        // has the user already subscribed to this event?
+        if( planned_events.includes( event.hash ) ) {
+            // remove the event from the list of saved events
+            const idx = planned_events.indexOf( event.hash );
+            if( idx > -1 ) {
+                planned_events.splice( idx, 1 );
+            }
+        }
+        else {
+            // add the event to the list of saved events
+            planned_events.push( event.hash );
+        }
+    } );
+
+    document.addEventListener( 'plannedEventsUpdated', updateSubscribeButton );
+
+    updateSubscribeButton(); // set initial state
+
     return event_card;
 }
 
 // #endregion
 
-// #region Lazy load events when the user scrolls down
+// #region Display planned events for the selected day
 
-import gdc_schedule from "./schedule.json"
+var planned_events_container = document.createElement( 'div' );
+planned_events_container.style.overflowY = "auto";
+planned_events_container.style.flex = "1";
+planned_events_container.style.marginTop = "20px";
+pane_left_content.appendChild( planned_events_container );
+
+/** Build the card for a given saved events
+ * @param { number } event_hash
+ * @returns { HTMLDivElement } The card for the saved event
+ */
+function buildPlannedEventCard ( event_hash ) {
+    let event = GameplanUtils.getFromHash( event_hash );
+
+    let card = document.createElement( 'div' );
+    card.style.margin = "20px 0px";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.backgroundColor = COLORS.SURFACE_20;
+
+    let card_header = document.createElement( 'div' );
+    card_header.style.padding = "20px";
+    card_header.style.display = "flex";
+    card_header.style.justifyContent = "space-between";
+    card_header.style.backgroundColor = COLORS.SURFACE_20;
+    setHoverBgColor( card_header, COLORS.SURFACE_30 );
+    card_header.style.cursor = "pointer";
+    card.appendChild( card_header );
+
+    let card_header_left = document.createElement( 'div' );
+    card_header_left.style.display = "flex";
+    card_header_left.style.flexDirection = "column";
+    card_header_left.style.alignItems = "left";
+    card_header_left.style.justifyContent = "center";
+    card_header_left.style.width = "70%";
+    card_header.appendChild( card_header_left );
+
+    let card_header_right = document.createElement( 'div' );
+    card_header_right.style.display = "flex";
+    card_header_right.style.flexDirection = "column";
+    card_header_right.style.alignItems = "center";
+    card_header_right.style.justifyContent = "center";
+    card_header.appendChild( card_header_right );
+
+    let card_more_container = document.createElement( 'div' );
+    card_more_container.style.display = "none";
+    card_more_container.style.justifyContent = "space-between";
+    card_more_container.style.padding = "20px";
+    card.appendChild( card_more_container );
+
+    let card_more_left_container = document.createElement( 'div' );
+    card_more_left_container.style.display = "flex";
+    card_more_left_container.style.flexDirection = "column";
+    card_more_left_container.style.alignItems = "left";
+    card_more_left_container.style.justifyContent = "center";
+    card_more_container.appendChild( card_more_left_container );
+
+    let card_more_right_container = document.createElement( 'div' );
+    card_more_right_container.style.display = "flex";
+    card_more_right_container.style.flexDirection = "column";
+    card_more_right_container.style.alignItems = "right";
+    card_more_right_container.style.justifyContent = "center";
+    card_more_container.appendChild( card_more_right_container );
+
+    let card_title = document.createElement( 'a' );
+    card_title.textContent = event.title;
+    card_title.style.color = COLORS.LIGHT_0;
+    card_title.style.fontSize = "18px";
+    card_title.style.fontWeight = "400";
+    card_title.style.textAlign = "left";
+    card_header_left.appendChild( card_title );
+
+    let card_time_to_go = document.createElement( 'a' );
+    card_time_to_go.textContent = "--";
+    card_time_to_go.style.color = COLORS.PRIMARY_50;
+    card_time_to_go.style.fontSize = "26px";
+    card_time_to_go.style.fontWeight = "400";
+    card_header_right.appendChild( card_time_to_go );
+
+    function addIconAndTextToMoreInfo( icon, text) 
+    {
+        let container = document.createElement( 'div' );
+        container.style.display = "flex";
+        container.style.alignItems = "center";
+        container.style.gap = "8px";
+        container.style.marginTop = "10px";
+        card_more_left_container.appendChild( container );
+
+        let icon_element = document.createElement( 'i' );
+        icon_element.classList.add( ...icon );
+        icon_element.style.color = COLORS.PRIMARY_50;
+        icon_element.style.fontSize = "14px";
+        container.appendChild( icon_element );
+
+        let text_element = document.createElement( 'a' );
+        text_element.textContent = text;
+        text_element.style.color = COLORS.PRIMARY_50;
+        text_element.style.fontSize = "14px";
+        text_element.style.fontWeight = "400";
+        container.appendChild( text_element );
+    }
+
+    addIconAndTextToMoreInfo( ICONS.fa_location, event.location );
+    addIconAndTextToMoreInfo( ICONS.fa_hourglass, `${ event.start_time.getTimeStringHHMM12() } - ${ event.end_time.getTimeStringHHMM12() }` );
+
+    let card_learn_more_button = document.createElement( 'i' );
+    card_learn_more_button.classList.add( ...ICONS.fa_ellipsis_horizontal );
+    card_learn_more_button.style.color = COLORS.LIGHT_0;
+    card_learn_more_button.style.fontSize = "20px";
+    card_learn_more_button.style.cursor = "pointer";
+    setHoverColor( card_learn_more_button, COLORS.PRIMARY_0 );
+    card_more_right_container.appendChild( card_learn_more_button );
+
+    function deletePlannedEvent() {
+        const idx = planned_events.indexOf( event_hash );
+        if( idx > -1 ) {
+            planned_events.splice( idx, 1 );
+        }
+    }
+
+    card_header.addEventListener( 'click', function() {
+        card_more_container.style.display = card_more_container.style.display == "none" ? "flex" : "none";
+    } );
+
+    card_learn_more_button.addEventListener( 'click', function( e ) {
+        e.stopPropagation();
+        let options = [];
+        options.push( { text: "Delete", icon: ICONS.fa_trash, action: deletePlannedEvent } );
+        openOptionsMenu( options, card_learn_more_button );
+    } );
+
+    return card;
+}
+
+/** Clears all UI elements and rebuilds them. Usually called when the planned_events list is updated
+ * 
+ */
+function rebuildPlannedEvents() {
+    planned_events_container.innerHTML = "";
+    planned_events.forEach( event_hash => {
+        let event_card = buildPlannedEventCard( event_hash );
+        planned_events_container.appendChild( event_card );
+    } );
+};
+
+// fire an event when the planned events list is updated + initial build
+document.addEventListener( 'plannedEventsUpdated', rebuildPlannedEvents );
+rebuildPlannedEvents();
+
+// #endregion
+
+// #region Lazy load events when the user scrolls down
 
 const BATCH_SIZE = 10;
 let last_loaded_event_idx = 0;
 
 function loadMoreEventCards() {
-    let events_to_load = gdc_schedule.slice( last_loaded_event_idx, last_loaded_event_idx + BATCH_SIZE );
+    let events_to_load = all_gameplan_events.slice( last_loaded_event_idx, last_loaded_event_idx + BATCH_SIZE );
     events_to_load.forEach( event => {
         let event_card = buildEventCard( event );
         events_container.insertBefore( event_card, sentinel );
@@ -762,7 +1164,7 @@ var observer = new IntersectionObserver( ( entries ) => {
     if( entries[ 0 ].isIntersecting ) {
         loadMoreEventCards();
     };
-}, { root: events_container, rootMargin: "0px", threshold: 1.0 } );
+}, { root: events_container, rootMargin: "100px", threshold: 1.0 } );
 
 // Add a sentinel element at the bottom of the events container to trigger the observer
 var sentinel = document.createElement( 'div' );
