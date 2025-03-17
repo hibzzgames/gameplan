@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "0.3";
+const APP_VERSION = "1.0";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -43,27 +43,27 @@ const COLORS =
 
     // Dark Theme Primary Colors
     PRIMARY_0:  "#e09cb4",
-	PRIMARY_10: "#e4a7bc",
-	PRIMARY_20: "#e8b2c4",
-	PRIMARY_30: "#ecbdcc",
-	PRIMARY_40: "#efc8d5",
-	PRIMARY_50: "#f3d3dd",
+    PRIMARY_10: "#e4a7bc",
+    PRIMARY_20: "#e8b2c4",
+    PRIMARY_30: "#ecbdcc",
+    PRIMARY_40: "#efc8d5",
+    PRIMARY_50: "#f3d3dd",
 
     // Dark theme surface colors
     SURFACE_0:  "#121212",
-	SURFACE_10: "#282828",
-	SURFACE_20: "#3f3f3f",
-	SURFACE_30: "#575757",
-	SURFACE_40: "#717171",
-	SURFACE_50: "#8b8b8b",
+    SURFACE_10: "#282828",
+    SURFACE_20: "#3f3f3f",
+    SURFACE_30: "#575757",
+    SURFACE_40: "#717171",
+    SURFACE_50: "#8b8b8b",
 
     // Dark theme tonal surface colors
     SURFACE_TONAL_0:  "#241e20",
-	SURFACE_TONAL_10: "#393335",
-	SURFACE_TONAL_20: "#4e494b",
-	SURFACE_TONAL_30: "#656062",
-	SURFACE_TONAL_40: "#7d797a",
-	SURFACE_TONAL_50: "#969293",
+    SURFACE_TONAL_10: "#393335",
+    SURFACE_TONAL_20: "#4e494b",
+    SURFACE_TONAL_30: "#656062",
+    SURFACE_TONAL_40: "#7d797a",
+    SURFACE_TONAL_50: "#969293",
 };
 
 const FONTS = {
@@ -81,12 +81,16 @@ const ICONS = {
     fa_chevron_right: [ "fa-solid", "fa-chevron-down", "fa-rotate-270" ],
     fa_chevron_up: [ "fa-solid", "fa-chevron-down", "fa-rotate-180" ],
     fa_clock: [ "fa-solid", "fa-clock" ],
+    fa_code: [ "fa-solid", "fa-code" ],
     fa_ellipsis_horizontal: [ "fa-solid", "fa-ellipsis-vertical", "fa-rotate-90" ],
     fa_ellipsis_vertical: [ "fa-solid", "fa-ellipsis-vertical" ],
+    fa_eye: [ "fa-solid", "fa-eye" ],
+    fa_eye_slash: [ "fa-solid", "fa-eye-slash" ],
     fa_filter: [ "fa-solid", "fa-filter" ],
     fa_floppy_disk: [ "fa-solid", "fa-floppy-disk" ],
     fa_hourglass: [ "fa-solid", "fa-hourglass" ],
     fa_info: [ "fa-solid", "fa-info" ],
+    fa_link: [ "fa-solid", "fa-link" ],
     fa_location: [ "fa-solid", "fa-location-dot" ],
     fa_magnifying_glass: [ "fa-solid", "fa-magnifying-glass" ],
     fa_paper_plane: [ "fa-solid", "fa-paper-plane" ], 
@@ -401,6 +405,11 @@ document.addEventListener( 'plannedEventsUpdated', function() {
     localStorage.setItem( 'planned_events', JSON.stringify( planned_events ) );
 } );
 
+var hide_find_events = false;
+if( localStorage.getItem( 'hide_find_events' ) != null ) {
+    hide_find_events = JSON.parse( localStorage.getItem( 'hide_find_events' ) );
+}
+
 // #endregion
 
 // #region Build Base UI Layout
@@ -704,6 +713,7 @@ document.body.appendChild( options_menu );
  * @param { HTMLElement }       instigator  The element that triggered the options menu
  */
 function openOptionsMenu( options, instigator ) {
+    const instigator_rect = instigator.getBoundingClientRect(); // in case instigator was part of the last options menu
     options_menu.innerHTML = ""; // clear any existing menu items
     
     options.forEach( item => { 
@@ -738,14 +748,19 @@ function openOptionsMenu( options, instigator ) {
         text.style.fontFamily = FONTS.IBM_PLEX_MONO;
         menu_item.appendChild( text );
 
-        menu_item.addEventListener( 'click', item.action );
+        menu_item.addEventListener( 'click', function() { item.action( menu_item ); } );
     } );
 
     options_menu.style.display = "block";
-    let instigator_rect = instigator.getBoundingClientRect();
     let menu_rect = options_menu.getBoundingClientRect();
     options_menu.style.top = instigator_rect.top + "px";
-    options_menu.style.left = ( instigator_rect.left - menu_rect.width - 6 ) + "px";
+    if ( instigator && document.body.contains( instigator ) )
+    {
+        options_menu.style.left = ( instigator_rect.left - menu_rect.width - 6 ) + "px";
+    } else {
+        options_menu.style.left = instigator_rect.left + "px";
+    }
+
 
     last_options_menu_instigator = instigator;
 }
@@ -768,11 +783,30 @@ const HEADER_OPTIONS_MENU_ITEMS =
 [
     { text: "Save",   icon: ICONS.fa_floppy_disk,               action: function() { SavePlannedEvents();     } },
     { text: "Import", icon: ICONS.fa_arrow_right_from_bracket,  action: function() { ImportPlannedEvents();   } },
+    { text: "Links",  icon: ICONS.fa_link,                      action: function( menu_item ) { OpenLinksMenu( menu_item ) } },
+];
+
+/** A list of menu items that can be used to show the social links
+ * @type { OptionsMenuItem[] }
+ */
+const LINKS_MENU_ITEMS =
+[
+    { text: "Source Code", icon: ICONS.fa_code, action: function() { window.open( "https://github.com/hibzzgames/gameplan" ) } },
+    { text: "Bsky", icon: ICONS.fa_bluesky, action: function() { window.open( "https://bsky.app/profile/slip.hibzz.games" ) } },
 ];
 
 // add the event listener to the header options button to open the options menu
 header_options_button.addEventListener( 'click', function() {
-    openOptionsMenu( HEADER_OPTIONS_MENU_ITEMS, header_options_button );
+    var options = [...HEADER_OPTIONS_MENU_ITEMS];
+    if( current_layout == LAYOUT.MOBILE ) {
+        options.push( { 
+            text: hide_find_events ? "Show Find Events" : "Hide Find Events", 
+            icon: hide_find_events ? ICONS.fa_eye : ICONS.fa_eye_slash,
+            action: function() { ToggleFindEvents(); } 
+        } );
+    }
+
+    openOptionsMenu( options, header_options_button );
 } );
 
 function SavePlannedEvents() {
@@ -810,6 +844,16 @@ function ImportPlannedEvents() {
         document.body.removeChild( input );
     } );
     input.click();
+}
+
+function OpenLinksMenu( menu_item ) {
+    openOptionsMenu( LINKS_MENU_ITEMS, menu_item );
+}
+
+function ToggleFindEvents() {
+    hide_find_events = !hide_find_events;
+    localStorage.setItem( 'hide_find_events', hide_find_events );
+    open_pane_right_button.style.display = hide_find_events ? "none" : "flex";
 }
 
 // #endregion
@@ -1431,9 +1475,10 @@ function SearchEventsAndApplyFilters( search_query, filters ) {
     }
 
     // done filtering by search query, now apply filters
-    filtered_events = filtered_events.filter( event => { 
+    filtered_events = filtered_events.filter( event => {
+        let event_tracks = event.tracks.split( "," );
         let passes = filters.pass_types.length == 0 || filters.pass_types.some( pass => event.passes.includes( pass ) );
-        let tracks = filters.tracks.length == 0 || filters.tracks.some( track => event.tracks === track );
+        let tracks = filters.tracks.length == 0 || filters.tracks.some( track => event_tracks.some( event_track => event_track.trim() == track ) );
         let formats = filters.formats.length == 0 || filters.formats.some( format => event.format === format );
         
         // any overlapping time between the event range and the filter time range will be included
@@ -1956,7 +2001,7 @@ function updateLayoutElements()
         pane_left.style.width = "100%";
         pane_right.style.display = "none";
         pane_resizer.style.display = "none";
-        open_pane_right_button.style.display = "flex";
+        open_pane_right_button.style.display = hide_find_events ? "none" : "flex";
         open_pane_left_button.style.display = "flex";
         right_header.style.justifyContent = "space-between";
         right_title.style.display = "block";

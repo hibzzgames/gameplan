@@ -50,7 +50,10 @@ fs.readFile( 'schedule.json', 'utf8', ( err, data ) => {
             pass = pass.trim();
             if( !props.pass_types.includes( pass ) ) { props.pass_types.push( pass ); }
         } );
-        if( !props.tracks.includes( event.tracks ) ) { props.tracks.push( event.tracks ); }
+        event.tracks.split( ',' ).forEach( ( track ) => {
+            track = track.trim();
+            if( !props.tracks.includes( track ) ) { props.tracks.push( track ); }
+        } );
         if( !props.formats.includes( event.format ) ) { props.formats.push( event.format ); }
 
         let day = new Date( event.start_time ).getDay();

@@ -348,8 +348,17 @@
   .fa-chevron-down {
     --fa: "\f078"; }
 
+  .fa-code {
+    --fa: "\f121"; }
+
   .fa-ellipsis-vertical {
     --fa: "\f142"; }
+
+  .fa-eye {
+    --fa: "\f06e"; }
+
+  .fa-eye-slash {
+    --fa: "\f070"; }
 
   .fa-filter {
     --fa: "\f0b0"; }
@@ -365,6 +374,9 @@
 
   .fa-location-dot {
     --fa: "\f3c5"; }
+
+  .fa-link {
+    --fa: "\f0c1"; }
   
   .fa-magnifying-glass {
     --fa: "\f002"; }
