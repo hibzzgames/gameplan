@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "0.2";
+const APP_VERSION = "0.3";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -456,7 +456,6 @@ title.style.textAlign = "left";
 header.appendChild( title );
 
 var header_options_button = document.createElement( 'i' );
-header_options_button.style.display = "none"; // temporarily hidden
 header_options_button.classList.add( ...ICONS.fa_ellipsis_vertical );
 header_options_button.style.cursor = "pointer";
 header_options_button.style.fontSize = "24px";
@@ -767,14 +766,51 @@ document.addEventListener( 'click', function( e ) {
  */
 const HEADER_OPTIONS_MENU_ITEMS = 
 [
-    { text: "Save",   icon: ICONS.fa_floppy_disk,               action: function() { alert( "save" );     } },
-    { text: "Export", icon: ICONS.fa_arrow_right_from_bracket,  action: function() { alert( "export" );   } },
+    { text: "Save",   icon: ICONS.fa_floppy_disk,               action: function() { SavePlannedEvents();     } },
+    { text: "Import", icon: ICONS.fa_arrow_right_from_bracket,  action: function() { ImportPlannedEvents();   } },
 ];
 
 // add the event listener to the header options button to open the options menu
 header_options_button.addEventListener( 'click', function() {
     openOptionsMenu( HEADER_OPTIONS_MENU_ITEMS, header_options_button );
 } );
+
+function SavePlannedEvents() {
+    var save_data = {};
+    save_data[ "planned_events" ] = planned_events;
+    var blob = new Blob( [ JSON.stringify( save_data ) ], { type: "application/json" } );
+    var url = URL.createObjectURL( blob );
+    var a = document.createElement( 'a' );
+    a.href = url;
+    a.download = "gameplan.json";
+    document.body.appendChild( a );
+    a.click();
+    document.body.removeChild( a );
+    URL.revokeObjectURL( url );
+}
+
+function ImportPlannedEvents() {
+    var input = document.createElement( 'input' );
+    input.type = "file";
+    input.accept = ".json";
+    input.style.display = "none";
+    document.body.appendChild( input );
+    input.addEventListener( 'change', function() {
+        var file = input.files[ 0 ];
+        var reader = new FileReader();
+        reader.onload = function() {
+            if( planned_events.length == 0 || confirm( "It appears you have some saved plans here. Are you sure you want to overwrite it with the imported file?" ) ) {
+                planned_events.splice( 0, planned_events.length );
+                JSON.parse( reader.result )[ "planned_events" ].forEach( hash => {
+                    planned_events.push( hash );
+                } );
+            }
+        };
+        reader.readAsText( file );
+        document.body.removeChild( input );
+    } );
+    input.click();
+}
 
 // #endregion
 
@@ -1311,7 +1347,7 @@ function buildPlannedEventCard ( event_hash ) {
 
     function openInEventPage() {
         force_open_these_events.push( event_hash );
-        SearchEventsAndApplyFilters( "id:" + event_hash, [] );
+        SearchEventsAndApplyFilters( "id:" + event_hash, default_search_filter );
         force_open_these_events.splice( force_open_these_events.indexOf( event_hash ), 1 );
         openPaneRight();
     }
@@ -1438,7 +1474,8 @@ import filter_props from "./filter.properties.json"
 /**
  * @type { SearchFilter }
  */
-var applied_search_filter = { selected_day: -1, start_datetime: new Date( "2025-03-16 00:00:00" ), end_datetime: new Date( "2025-03-22 23:59:59" ), pass_types: [], tracks: [], formats: [], in_time_slot_mode: false };
+var default_search_filter = { selected_day: -1, start_datetime: new Date( "2025-03-16 00:00:00" ), end_datetime: new Date( "2025-03-22 23:59:59" ), pass_types: [], tracks: [], formats: [], in_time_slot_mode: false };
+var applied_search_filter = default_search_filter;
 
 /** Items to be displayed in the filter menu
  * @typedef { Object } FilterMenuItem
