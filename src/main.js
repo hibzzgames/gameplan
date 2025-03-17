@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "0.1";
+const APP_VERSION = "0.2";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -77,7 +77,9 @@ const ICONS = {
     fa_circle: [ "fa-solid", "fa-circle" ],
     fa_check: [ "fa-solid", "fa-check" ],
     fa_chevron_down: [ "fa-solid", "fa-chevron-down" ],
+    fa_chevron_left: [ "fa-solid", "fa-chevron-down", "fa-rotate-90" ],
     fa_chevron_right: [ "fa-solid", "fa-chevron-down", "fa-rotate-270" ],
+    fa_chevron_up: [ "fa-solid", "fa-chevron-down", "fa-rotate-180" ],
     fa_clock: [ "fa-solid", "fa-clock" ],
     fa_ellipsis_horizontal: [ "fa-solid", "fa-ellipsis-vertical", "fa-rotate-90" ],
     fa_ellipsis_vertical: [ "fa-solid", "fa-ellipsis-vertical" ],
@@ -196,6 +198,38 @@ Date.prototype.getTimeStringHHMM12 = function() {
     return this.toLocaleTimeString( [], { hour: '2-digit', minute: '2-digit', hour12: true } );
 }
 
+/** Combine the date of the first argument with the time of the second argument
+ * @param { Date } date 
+ * @param { Date } time 
+ * @returns { Date } The combined date and time
+ */
+function combineDateAndTime( date, time ) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+
+    const hours = time.getHours();
+    const minutes = time.getMinutes();
+    const seconds = time.getSeconds();
+
+    return new Date( year, month, day, hours, minutes, seconds );
+}
+
+/** Convert the date to a string in the standard format "YYYY-MM-DD HH:MM:SS"
+ * @param {Date} date the date to convert to string
+ * @returns {string} the date string in the format "YYYY-MM-DD HH:MM:SS"
+ */
+function dateToStringStandard( date ) {
+    const year    = date.getFullYear();
+    const month   = String( date.getMonth() + 1 ).padStart( 2, '0' );
+    const day     = String( date.getDate() ).padStart( 2, '0' );
+    const hours   = String( date.getHours() ).padStart( 2, '0' );
+    const minutes = String( date.getMinutes() ).padStart( 2, '0' );
+    const seconds = String( date.getSeconds() ).padStart( 2, '0' );
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 // #endregion
 
 // #region Gameplan Event
@@ -269,6 +303,48 @@ var GameplanUtils = {
      */
     getFromHash: function( hash ) {
         return all_gameplan_events[ gameplan_events_hashmap.get( hash ) ];
+    },
+
+    /** Get the time remaining to the event start in seconds
+     * 
+     * @param {GameplanEvent} event 
+     * @returns The time remaining to the event start in seconds
+     */
+    getTimeToThisEvent: function( event ) {
+        return ( event.start_time - new Date() ) / 1000;
+    },
+
+    /** Get the time remaining to the event start in the format "hh:mm:ss"
+     * 
+     * @param {GameplanEvent} event 
+     * @returns A formatted string representing the time remaining to the event start
+     */
+    getTimeToThisEventString: function( event ) {
+        const time_remaining = GameplanUtils.getTimeToThisEvent( event );
+        if( time_remaining <= 0 ) {
+            const time_to_end = ( event.end_time - new Date() ) / 1000;
+            if( time_to_end <= 0 ) {
+                return "Ended";
+            }
+            return "Now";
+        }
+
+        const days = Math.floor( time_remaining / ( 3600 * 24 ) );
+        if( days > 0 ) {
+            return `${ days }d`;
+        }
+
+        const hours = Math.floor( time_remaining / 3600 );
+        if( hours > 0 ) {
+            return `${ hours }h`;
+        }
+
+        const minutes = Math.floor( time_remaining / 60 );
+        if( minutes > 0 ) {
+            return `${ minutes }m`;
+        }
+
+        return `${ Math.floor( time_remaining ) }s`;
     },
 };
 
@@ -380,6 +456,7 @@ title.style.textAlign = "left";
 header.appendChild( title );
 
 var header_options_button = document.createElement( 'i' );
+header_options_button.style.display = "none"; // temporarily hidden
 header_options_button.classList.add( ...ICONS.fa_ellipsis_vertical );
 header_options_button.style.cursor = "pointer";
 header_options_button.style.fontSize = "24px";
@@ -450,31 +527,45 @@ open_pane_right_text.style.fontSize = "24px";
 open_pane_right_text.textContent = "find events";
 open_pane_right_button.appendChild( open_pane_right_text );
 
-open_pane_right_button.addEventListener( 'click', function() { 
-    pane_right.style.display = "block";
-    pane_left.style.display = "none";
+function openPaneRight() {
+    if( current_layout == LAYOUT.MOBILE ) {
+        pane_right.style.display = "block";
+        pane_left.style.display = "none";
 
-    if( last_loaded_event_idx == 0 ) {
-        loadMoreEventCards();
+        if( last_loaded_event_idx == 0 ) {
+            loadMoreEventCards();
+        }
     }
-} );
+}
+
+open_pane_right_button.addEventListener( 'click', openPaneRight );
+
+var dynamic_bottom_nav = document.createElement( 'div' );
+dynamic_bottom_nav.style.position = "absolute";
+dynamic_bottom_nav.style.bottom = "20px";
+dynamic_bottom_nav.style.left = "0";
+dynamic_bottom_nav.style.right = "0";
+dynamic_bottom_nav.style.margin = "auto";
+dynamic_bottom_nav.style.width = "100%";
+dynamic_bottom_nav.style.display = "flex";
+dynamic_bottom_nav.style.justifyContent = "center";
+dynamic_bottom_nav.style.alignItems = "center";
+dynamic_bottom_nav.style.gap = "20px";
+pane_right.appendChild( dynamic_bottom_nav );
 
 var open_pane_left_button = document.createElement( 'div' );
-open_pane_left_button.style.position = "absolute";
-open_pane_left_button.style.bottom = "20px";
-open_pane_left_button.style.left = "0";
-open_pane_left_button.style.right = "0";
-open_pane_left_button.style.margin = "auto";
-open_pane_left_button.style.width = "66%";
+//open_pane_left_button.style.width = "66%";
 open_pane_left_button.style.height = "60px";
 open_pane_left_button.style.borderRadius = "30px";
 open_pane_left_button.style.backgroundColor = COLORS.LIGHT_0;
 open_pane_left_button.style.display = "flex";
+open_pane_left_button.style.maxWidth = "66%";
+open_pane_left_button.style.flex = "1";
 open_pane_left_button.style.justifyContent = "center";
 open_pane_left_button.style.alignItems = "center";
 open_pane_left_button.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
 setHoverBgColor( open_pane_left_button, COLORS.PRIMARY_20 );
-pane_right.appendChild( open_pane_left_button );
+dynamic_bottom_nav.appendChild( open_pane_left_button );
 
 var open_pane_left_text = document.createElement( 'a' );
 open_pane_left_text.style.color = COLORS.DARK_0;
@@ -482,12 +573,79 @@ open_pane_left_text.style.fontSize = "24px";
 open_pane_left_text.textContent = "done";
 open_pane_left_button.appendChild( open_pane_left_text );
 
-open_pane_left_button.addEventListener( 'click', function() {
-    pane_right.style.display = "none";
-    pane_left.style.display = "block";
+function openPaneLeft() {
+    if( current_layout == LAYOUT.MOBILE ) {
+        pane_right.style.display = "none";
+        pane_left.style.display = "block";
+    }
+}
+
+open_pane_left_button.addEventListener( 'click', openPaneLeft );
+
+var time_slot_buttons_container = document.createElement( 'div' );
+time_slot_buttons_container.style.display = "none";
+time_slot_buttons_container.style.alignItems = "center";
+time_slot_buttons_container.style.justifyContent = "start";
+time_slot_buttons_container.style.backgroundColor = COLORS.LIGHT_0;
+time_slot_buttons_container.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
+time_slot_buttons_container.style.borderRadius = "30px";
+dynamic_bottom_nav.appendChild( time_slot_buttons_container );
+
+var prev_time_slot_button = document.createElement( 'div' );
+prev_time_slot_button.style.width = "60px";
+prev_time_slot_button.style.height = "60px";
+prev_time_slot_button.style.borderRadius = "30px 0px 0px 30px";
+prev_time_slot_button.style.backgroundColor = COLORS.LIGHT_0;
+prev_time_slot_button.style.color = COLORS.DARK_0;
+prev_time_slot_button.style.display = "flex";
+prev_time_slot_button.style.justifyContent = "center";
+prev_time_slot_button.style.alignItems = "center";
+setHoverColor( prev_time_slot_button, COLORS.PRIMARY_0 );
+time_slot_buttons_container.appendChild( prev_time_slot_button );
+
+var prev_time_slot_icon = document.createElement( 'i' );
+prev_time_slot_icon.classList.add( ...ICONS.fa_chevron_left );
+prev_time_slot_icon.style.fontSize = "24px";
+prev_time_slot_button.appendChild( prev_time_slot_icon );
+
+var current_time_slot_text = document.createElement( 'a' );
+current_time_slot_text.style.color = COLORS.DARK_0;
+current_time_slot_text.style.fontSize = "14px";
+current_time_slot_text.style.fontWeight = "400";
+current_time_slot_text.style.margin = "0px 2px";
+current_time_slot_text.textContent = "9:30am - 10:30am";
+time_slot_buttons_container.appendChild( current_time_slot_text );
+
+var next_time_slot_button = document.createElement( 'div' );
+next_time_slot_button.style.width = "60px";
+next_time_slot_button.style.height = "60px";
+next_time_slot_button.style.borderRadius = "0px 30px 30px 0px";
+next_time_slot_button.style.backgroundColor = COLORS.LIGHT_0;
+next_time_slot_button.style.color = COLORS.DARK_0;
+next_time_slot_button.style.display = "flex";
+next_time_slot_button.style.justifyContent = "center";
+next_time_slot_button.style.alignItems = "center";
+setHoverColor( next_time_slot_button, COLORS.PRIMARY_0 );
+time_slot_buttons_container.appendChild( next_time_slot_button );
+
+var next_time_slot_icon = document.createElement( 'i' );
+next_time_slot_icon.classList.add( ...ICONS.fa_chevron_right );
+next_time_slot_icon.style.fontSize = "24px";
+next_time_slot_button.appendChild( next_time_slot_icon );
+
+prev_time_slot_button.addEventListener( 'click', function() {
+    let filters = applied_search_filter;
+    filters.start_datetime = new Date( filters.start_datetime.getTime() - 1000 * 60 * 60 );
+    filters.end_datetime = new Date( filters.end_datetime.getTime() - 1000 * 60 * 60 );
+    applyFilters( filters );
 } );
 
-
+next_time_slot_button.addEventListener( 'click', function() { 
+    let filters = applied_search_filter;
+    filters.start_datetime = new Date( filters.start_datetime.getTime() + 1000 * 60 * 60 );
+    filters.end_datetime = new Date( filters.end_datetime.getTime() + 1000 * 60 * 60 );
+    applyFilters( filters );
+} );
 
 // #endregion
 
@@ -559,11 +717,19 @@ function openOptionsMenu( options, instigator ) {
         setHoverBgColor( menu_item, COLORS.SURFACE_20 );
         options_menu.appendChild( menu_item );
 
+        let icon_centering = document.createElement( 'div' );
+        icon_centering.style.width = "20px";
+        icon_centering.style.height = "20px";
+        icon_centering.style.display = "flex";
+        icon_centering.style.justifyContent = "center";
+        icon_centering.style.alignItems = "center";
+        menu_item.appendChild( icon_centering );
+
         let icon = document.createElement( 'i' );
         icon.classList.add( ...item.icon );
         icon.style.color = "inherit";
         icon.style.fontSize = "20px";
-        menu_item.appendChild( icon );
+        icon_centering.appendChild( icon );
 
         let text = document.createElement( 'a' );
         text.textContent = item.text;
@@ -614,10 +780,9 @@ header_options_button.addEventListener( 'click', function() {
 
 // #region Add day selectors and manage current selected day
 
-const DAYS = [ "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY" ];
-var current_selected_day = DAYS[ 1 ]; // @TODO: Automatically set this to the current day (based on the dates between 2025-03-17 to 2025-03-21)
-
-if( false ) {
+const DAYS = [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ];
+const DATES = [ new Date("2025-03-16"), new Date("2025-03-17"), new Date("2025-03-18"), new Date("2025-03-19"), new Date("2025-03-20"), new Date("2025-03-21"), new Date("2025-03-22") ];
+var current_selected_day = 1; // @TODO: Automatically set this to the current day (based on the dates between 2025-03-17 to 2025-03-21)
 
 var days_container = document.createElement( 'div' );
 days_container.style.display = "flex";
@@ -634,10 +799,8 @@ day_highlighter.style.backgroundColor = "inherit";
 
 for( let i = 1; i <= 5; i++ ) {
     const ELEMENT_SIZE = 40;
-    let day = DAYS[ i ];
 
     let day_div = document.createElement( 'div' );
-    day_div.id = day;
     day_div.style.backgroundColor = COLORS.LIGHT_0;
     day_div.style.width = ELEMENT_SIZE + "px";
     day_div.style.height = ELEMENT_SIZE + "px";
@@ -651,27 +814,27 @@ for( let i = 1; i <= 5; i++ ) {
     days_container.appendChild( day_div );
 
     let day_text = document.createElement( 'a' );
-    day_text.textContent = day.charAt( 0 );
+    day_text.textContent = DAYS[ i ].charAt( 0 );
     day_text.style.color = COLORS.DARK_0;
     day_text.style.fontWeight = "500";
     day_div.appendChild( day_text );
 
-    if( day == current_selected_day ) {
+    if( i == current_selected_day ) {
         day_div.appendChild( day_highlighter );
     }
 
     day_div.addEventListener( 'click', function() {
-        if( day != current_selected_day ) {
+        if( i != current_selected_day ) {
             day_div.appendChild( day_highlighter );
-            current_selected_day = day;
+            current_selected_day = i;
+            rebuildPlannedEvents();
         }
     } );
 };
-}
 
 // #endregion
 
-// #region Add search bar to search for events
+// #region Define search bar and filter layout
 
 var right_header_search_elements = document.createElement( 'div' );
 right_header_search_elements.style.display = "flex";
@@ -727,7 +890,6 @@ search_bar_input.addEventListener( 'input', function() {
         search_bar_button.classList.add( ...ICONS.fa_paper_plane );
         search_bar_button.style.color = COLORS.PRIMARY_50;
         setHoverColor( search_bar_button, COLORS.PRIMARY_0 );
-        
     } else {
         search_bar_button.classList.remove( ...ICONS.fa_paper_plane );
         search_bar_button.classList.add( ...ICONS.fa_magnifying_glass );
@@ -736,9 +898,39 @@ search_bar_input.addEventListener( 'input', function() {
     }
 } );
 
+search_bar_input.addEventListener( 'focus', function() {
+    if( current_layout == LAYOUT.MOBILE ) {
+        right_title.style.display = "none";
+        right_header.style.justifyContent = "center";
+    }
+} );
+
+search_bar_input.addEventListener( 'blur', function() {
+    if( current_layout == LAYOUT.MOBILE ) {
+        right_title.style.display = "block";
+        right_header.style.justifyContent = "space-between";
+    }
+} );
+
+search_bar_input.addEventListener( 'keyup', function( e ) {
+    if( e.key == "Enter" ) {
+        search_bar_input.blur(); 
+        SearchEventsAndApplyFiltersFromSearchBar();
+    }
+} );
+
+search_bar_button.addEventListener( 'click', SearchEventsAndApplyFiltersFromSearchBar );
+
+filter_button.addEventListener( 'click', function() { toggleOpenFilterMenu( filter_button ) } );
+
 // #endregion
 
 // #region create the layout for displaying events
+
+/** Event hashes of events that are have their details pane open upon event pane getting rebuilt
+ * @type { number[] }
+ */
+var force_open_these_events = [];
 
 var events_container = document.createElement( 'div' );
 events_container.style.overflowY = "auto";
@@ -845,6 +1037,9 @@ function buildEventCard( event ) {
     event_more_info_container.style.display = "none";
     event_more_info_container.style.flexDirection = "column";
     event_card.appendChild( event_more_info_container );
+    if( force_open_these_events.includes( event.hash ) ) {
+        event_more_info_container.style.display = "flex";
+    }
 
     let event_more_info_tags_container = document.createElement( 'div' );
     event_more_info_tags_container.style.display = "flex";
@@ -880,7 +1075,7 @@ function buildEventCard( event ) {
         addMoreInfoTag( "Recorded", ICONS.fa_video );
     }
 
-    if ( event.description.length > 0 ) {
+    if ( event.description.trim().length > 0 ) {
         let event_description_title = document.createElement( 'a' );
         event_description_title.textContent = "Description";
         event_description_title.style.color = COLORS.PRIMARY_50;
@@ -899,7 +1094,7 @@ function buildEventCard( event ) {
         event_more_info_container.appendChild( event_description );
     }
 
-    if ( event.takeaway.length > 0 ) {
+    if ( event.takeaway.trim().length > 0 ) {
         let event_takeaway_title = document.createElement( 'a' );
         event_takeaway_title.textContent = "~ Takeaways";
         event_takeaway_title.style.color = COLORS.PRIMARY_50;
@@ -920,7 +1115,7 @@ function buildEventCard( event ) {
         event_more_info_container.appendChild( event_takeaway );
     }
 
-    if ( event.intended_audience.length > 0 ) {
+    if ( event.intended_audience.trim().length > 0 ) {
         let event_intended_audience_title = document.createElement( 'a' );
         event_intended_audience_title.textContent = "~ Intended Audience";
         event_intended_audience_title.style.color = COLORS.PRIMARY_50;
@@ -1067,9 +1262,9 @@ function buildPlannedEventCard ( event_hash ) {
     card_header_left.appendChild( card_title );
 
     let card_time_to_go = document.createElement( 'a' );
-    card_time_to_go.textContent = "--";
+    card_time_to_go.textContent = GameplanUtils.getTimeToThisEventString( event );
     card_time_to_go.style.color = COLORS.PRIMARY_50;
-    card_time_to_go.style.fontSize = "26px";
+    card_time_to_go.style.fontSize = "29px"; // golden ratio
     card_time_to_go.style.fontWeight = "400";
     card_header_right.appendChild( card_time_to_go );
 
@@ -1114,6 +1309,13 @@ function buildPlannedEventCard ( event_hash ) {
         }
     }
 
+    function openInEventPage() {
+        force_open_these_events.push( event_hash );
+        SearchEventsAndApplyFilters( "id:" + event_hash, [] );
+        force_open_these_events.splice( force_open_these_events.indexOf( event_hash ), 1 );
+        openPaneRight();
+    }
+
     card_header.addEventListener( 'click', function() {
         card_more_container.style.display = card_more_container.style.display == "none" ? "flex" : "none";
     } );
@@ -1121,6 +1323,7 @@ function buildPlannedEventCard ( event_hash ) {
     card_learn_more_button.addEventListener( 'click', function( e ) {
         e.stopPropagation();
         let options = [];
+        options.push( { text: "Open in Event Page", icon: ICONS.fa_info, action: openInEventPage } );
         options.push( { text: "Delete", icon: ICONS.fa_trash, action: deletePlannedEvent } );
         openOptionsMenu( options, card_learn_more_button );
     } );
@@ -1133,7 +1336,14 @@ function buildPlannedEventCard ( event_hash ) {
  */
 function rebuildPlannedEvents() {
     planned_events_container.innerHTML = "";
-    planned_events.forEach( event_hash => {
+    planned_events.filter( event_hash => { 
+        let event = GameplanUtils.getFromHash( event_hash );
+        return event.start_time.getDay() == current_selected_day;
+    }).sort( ( a, b ) => {
+        let event_a = GameplanUtils.getFromHash( a );
+        let event_b = GameplanUtils.getFromHash( b );
+        return event_a.start_time - event_b.start_time;
+    } ).forEach( event_hash => {
         let event_card = buildPlannedEventCard( event_hash );
         planned_events_container.appendChild( event_card );
     } );
@@ -1145,13 +1355,513 @@ rebuildPlannedEvents();
 
 // #endregion
 
+// #region Search and Filter Logic
+
+// The list of all events that are displayed in the events container
+var filtered_events = all_gameplan_events;
+
+/**
+ * 
+ * @param { string } search_query 
+ * @param { SearchFilter } filters 
+ */
+function SearchEventsAndApplyFilters( search_query, filters ) {
+    if( search_query.length > 0 ) {
+        let search_terms = search_query.split( " " );
+        let id_search_terms = search_terms.filter( term => term.startsWith( "id:" ) );
+        search_terms = search_terms.filter( term => id_search_terms.indexOf( term ) == -1 );
+
+        filtered_events = all_gameplan_events.filter( event => {
+            let found = false;
+
+            // search by hash if any of the search query terms starts with id:#
+            if( id_search_terms.length > 0 ) {
+                found = id_search_terms.find( id_search => id_search.substring( 3 ) == event.hash ) != undefined;
+            }
+
+            if( !found ) { // search by the title
+                let event_title = event.title.toLowerCase();
+                found = search_terms.find( term => event_title.includes( term ) ) != undefined;
+            }
+            if( !found ) {  // search by the speakers
+                let event_speakers = event.speakers.toLowerCase();
+                found = search_terms.find( term => event_speakers.includes( term ) ) != undefined;
+            }
+
+            return found;
+         } );
+    } else {
+        filtered_events = all_gameplan_events;
+    }
+
+    // done filtering by search query, now apply filters
+    filtered_events = filtered_events.filter( event => { 
+        let passes = filters.pass_types.length == 0 || filters.pass_types.some( pass => event.passes.includes( pass ) );
+        let tracks = filters.tracks.length == 0 || filters.tracks.some( track => event.tracks === track );
+        let formats = filters.formats.length == 0 || filters.formats.some( format => event.format === format );
+        
+        // any overlapping time between the event range and the filter time range will be included
+        let time_check = event.start_time < filters.end_datetime && event.end_time > filters.start_datetime;
+         
+        return passes && tracks && formats && time_check;
+    } ).sort( ( a, b ) => GameplanUtils.getDuration( a, "s" ) - GameplanUtils.getDuration( b, "s" ) );
+
+    reloadEvents();
+}
+
+// reads from the search_bar_input field and applies filters to the events
+function SearchEventsAndApplyFiltersFromSearchBar() {
+    let search_query = search_bar_input.value.toLowerCase();
+    SearchEventsAndApplyFilters( search_query, applied_search_filter );
+};
+
+// #endregion
+
+// #region Filter Menu 
+
+// It's getting late and I'm getting delirious. Not sure what the hell I'm 
+// doing here anymore. I'm gonna get so confused with the variables I have 
+// named and shit being all over the place 
+import filter_props from "./filter.properties.json"
+
+/** 
+ * @typedef { Object } SearchFilter
+ * @property { number } selected_day
+ * @property { Date } start_datetime
+ * @property { Date } end_datetime
+ * @property { String[] } pass_types
+ * @property { String[] } tracks
+ * @property { String[] } formats
+ * @property { boolean } in_time_slot_mode
+ */
+
+/**
+ * @type { SearchFilter }
+ */
+var applied_search_filter = { selected_day: -1, start_datetime: new Date( "2025-03-16 00:00:00" ), end_datetime: new Date( "2025-03-22 23:59:59" ), pass_types: [], tracks: [], formats: [], in_time_slot_mode: false };
+
+/** Items to be displayed in the filter menu
+ * @typedef { Object } FilterMenuItem
+ * @property { string } id
+ * @property { string } name
+ * @property { string } type
+ * @property { boolean } isEnabled
+ * @property { string[]? } options
+ */
+
+const FILTER_TYPES = { DATE_TIME: "date_time", MULTI_SELECT: "multi_select" };
+
+/** The list of filter menu items
+ * @type { FilterMenuItem[] }
+ */
+var SEARCH_FILTERS = 
+[ 
+    { name: "Date & Time", id: "date_time",  type: FILTER_TYPES.DATE_TIME,    isEnabled: true },
+    { name: "Pass Type",   id: "pass_types", type: FILTER_TYPES.MULTI_SELECT, isEnabled: true, options: filter_props.pass_types },  // the list is auto generated from /tools
+    { name: "Tracks",      id: "tracks",     type: FILTER_TYPES.MULTI_SELECT, isEnabled: true, options: filter_props.tracks },      // the list is auto generated from /tools
+    { name: "Format",      id: "formats",    type: FILTER_TYPES.MULTI_SELECT, isEnabled: true, options: filter_props.formats },     // the list is auto generated from /tools
+];
+
+var last_filter_menu_instigator = null;
+
+var filter_menu = document.createElement( 'div' );
+filter_menu.style.position = "absolute";
+filter_menu.style.display = "none";
+filter_menu.style.zIndex = "20";
+filter_menu.style.color = COLORS.LIGHT_0;
+filter_menu.style.backgroundColor = COLORS.SURFACE_10;
+filter_menu.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
+filter_menu.style.fontFamily = FONTS.IBM_PLEX_MONO;
+filter_menu.style.width = "300px";
+document.body.appendChild( filter_menu );
+
+/** Refresh the filter menu with the given items
+ * @param {FilterMenuItem[]} items 
+ */
+function refreshFilterMenu( items ) {
+    filter_menu.innerHTML = "";
+
+    /**
+     * @type { SearchFilter }
+     */
+    var temp_search_filters = applied_search_filter;
+
+    items.forEach( item => {
+        let filter_item = document.createElement( 'div' );
+        filter_item.style.display = "flex";
+        filter_item.style.flexDirection = "column";
+        filter_item.style.alignItems = "left";
+        filter_menu.appendChild( filter_item );
+
+        let filter_header = document.createElement( 'div' );
+        filter_header.style.padding = "10px 15px";
+        filter_header.style.display = "flex";
+        filter_header.style.justifyContent = "start";
+        filter_header.style.alignItems = "center";
+        filter_header.style.cursor = "pointer";
+        setHoverBgColor( filter_header, COLORS.SURFACE_20 );
+        filter_item.appendChild( filter_header );
+
+        let filter_toggle_icon = document.createElement( 'i' );
+        filter_toggle_icon.classList.add( ...ICONS.fa_chevron_right );
+        filter_toggle_icon.style.color = COLORS.LIGHT_0;
+        filter_toggle_icon.style.fontSize = "16px";
+        filter_header.appendChild( filter_toggle_icon );
+
+        let filter_name = document.createElement( 'a' );
+        filter_name.textContent = item.name;
+        filter_name.style.color = COLORS.LIGHT_0;
+        filter_name.style.fontSize = "16px";
+        filter_name.style.fontWeight = "400";
+        filter_name.style.textAlign = "left";
+        filter_name.style.marginLeft = "10px";
+        filter_header.appendChild( filter_name );
+
+        let filter_details_container = document.createElement( 'div' );
+        filter_details_container.style.display = "none";
+        filter_details_container.style.flexDirection = "column";
+        filter_details_container.style.alignItems = "left";
+        filter_details_container.style.padding = "20px 15px";
+        filter_item.appendChild( filter_details_container );
+
+        if( item.type == FILTER_TYPES.DATE_TIME ) {
+            // select a day first (M, T, W, Th, F)
+            // then a time range menu appears to fine tune the range
+            // additionally, a button to start using the time-slot mode appears
+
+            function refreshThisDetailsContainer() {
+                filter_details_container.innerHTML = "";
+
+                let day_select_container = document.createElement( 'div' );
+                day_select_container.style.display = "flex";
+                day_select_container.style.alignItems = "center";
+                day_select_container.style.justifyContent = "center";
+                day_select_container.style.gap = "10px";
+                day_select_container.style.padding = "5px 0px";
+                filter_details_container.appendChild( day_select_container );
+    
+                for( let i = 1; i <= 5; i++ ) {
+                    let day_button = document.createElement( 'div' );
+                    day_button.style.width = "30px";
+                    day_button.style.height = "30px";
+                    day_button.style.borderRadius = "50%";
+                    day_button.style.display = "flex";
+                    day_button.style.justifyContent = "center";
+                    day_button.style.alignItems = "center";
+                    day_button.style.cursor = "pointer";
+                    day_button.style.backgroundColor = i == temp_search_filters.selected_day ? COLORS.PRIMARY_0 : COLORS.SURFACE_20;
+                    day_button.style.color = i == temp_search_filters.selected_day ? COLORS.DARK_0 : COLORS.LIGHT_0;
+                    setHoverBgColor( day_button, COLORS.PRIMARY_20 );
+                    setHoverColor( day_button, COLORS.DARK_0 );
+                    day_select_container.appendChild( day_button );
+    
+                    let day_text = document.createElement( 'a' );
+                    day_text.textContent = DAYS[ i ].charAt( 0 );
+                    day_text.style.fontSize = "14px";
+                    day_text.style.fontWeight = "400";
+                    day_button.appendChild( day_text );
+    
+                    day_button.addEventListener( 'click', function( e ) {
+                        e.stopPropagation(); // not the best fix and might cause other issues, but due to time constraints, this will do
+                        if( temp_search_filters.selected_day == i ) {
+                            temp_search_filters.selected_day = -1;
+                        }
+                        else {
+                            temp_search_filters.selected_day = i;
+                        }
+                        refreshThisDetailsContainer();
+                    } );
+                }
+
+                // Show the time range selection if a day is selected
+                if( temp_search_filters.selected_day != -1 ) {
+                    let time_range_container = document.createElement( 'div' );
+                    time_range_container.style.display = "flex";
+                    time_range_container.style.alignItems = "center";
+                    time_range_container.style.justifyContent = "space-evenly";
+                    time_range_container.style.padding = "10px 0px";
+                    filter_details_container.appendChild( time_range_container );
+
+                    let start_time_container = document.createElement( 'div' );
+                    start_time_container.style.display = "flex";
+                    start_time_container.style.flexDirection = "column";
+                    start_time_container.style.alignItems = "left";
+                    time_range_container.appendChild( start_time_container );
+
+                    let range_min_time = filter_props.start_times[ temp_search_filters.selected_day ].substring( 11, 19 );
+                    let range_max_time = filter_props.end_times[ temp_search_filters.selected_day ].substring( 11, 19 );
+                    
+                    // Add 59 minutes to the min time to get the next time slot
+                    let range_next_time = new Date( "2025-03-12 " + range_min_time + ":00" );
+                    range_next_time = new Date( range_next_time.getTime() + 59 * 60000 );
+                    range_next_time = dateToStringStandard( range_next_time ).substring( 11, 19 );
+
+                    let start_time = document.createElement( 'input' );
+                    start_time.type = "time";
+                    start_time.value = range_min_time
+                    start_time.min = range_min_time;
+                    start_time.max = range_max_time;
+                    start_time.step = "900"; // 15 minutes
+                    start_time.style.flex = "1";
+                    start_time.style.height = "30px";
+                    start_time.style.fontSize = "16px";
+                    start_time.style.fontWeight = "400";
+                    start_time.style.textAlign = "center";
+                    start_time.style.marginRight = "10px";
+                    start_time.style.backgroundColor = temp_search_filters.in_time_slot_mode ? COLORS.SURFACE_10 : COLORS.SURFACE_20;
+                    start_time.style.color = temp_search_filters.in_time_slot_mode ? COLORS.LIGHT_0 + "80" : COLORS.LIGHT_0;
+                    start_time.style.border = "none";
+                    start_time.style.padding = "5px";
+                    start_time.style.outline = "none";
+                    start_time.disabled = temp_search_filters.in_time_slot_mode;
+                    start_time_container.appendChild( start_time );
+                    start_time.addEventListener( 'change', function() {
+                        temp_search_filters.start_datetime = new Date( "2025-03-12 " + start_time.value + ":00" ); // the date is arbitrary, only the time is important - will be processed correctly during the apply filter function
+                    } );
+                    temp_search_filters.start_datetime = new Date( "2025-03-12 " + start_time.value + ":00" );
+
+                    let start_time_text = document.createElement( 'a' );
+                    start_time_text.textContent = "Start Time";
+                    start_time_text.style.color = COLORS.LIGHT_0;
+                    start_time_text.style.fontSize = "12px";
+                    start_time_text.style.fontWeight = "400";
+                    start_time_text.style.textAlign = "left";
+                    start_time_container.appendChild( start_time_text );
+
+                    let end_time_container = document.createElement( 'div' );
+                    end_time_container.style.display = "flex";
+                    end_time_container.style.flexDirection = "column";
+                    end_time_container.style.alignItems = "left";
+                    time_range_container.appendChild( end_time_container );
+
+                    let end_time = document.createElement( 'input' );
+                    end_time.type = "time";
+                    end_time.value = temp_search_filters.in_time_slot_mode ? range_next_time : range_max_time;
+                    end_time.min = range_min_time;
+                    end_time.max = range_max_time;
+                    end_time.step = "900"; // 15 minutes
+                    end_time.style.flex = "1";
+                    end_time.style.height = "30px";
+                    end_time.style.fontSize = "16px";
+                    end_time.style.fontWeight = "400";
+                    end_time.style.textAlign = "center";
+                    end_time.style.backgroundColor = temp_search_filters.in_time_slot_mode ? COLORS.SURFACE_10 : COLORS.SURFACE_20;
+                    end_time.style.color = temp_search_filters.in_time_slot_mode ? COLORS.LIGHT_0 + "80" : COLORS.LIGHT_0;
+                    end_time.style.border = "none";
+                    end_time.style.padding = "5px";
+                    end_time.style.outline = "none";
+                    end_time.disabled = temp_search_filters.in_time_slot_mode
+                    end_time_container.appendChild( end_time );
+                    end_time.addEventListener( 'change', function() {
+                        temp_search_filters.end_datetime =  new Date( "2025-03-12 " + end_time.value + ":00" ); // the date is arbitrary, only the time is important - will be processed correctly during the apply filter function
+                    } );
+                    temp_search_filters.end_datetime = new Date( "2025-03-12 " + end_time.value + ":00" );
+
+                    let end_time_text = document.createElement( 'a' );
+                    end_time_text.textContent = "End Time";
+                    end_time_text.style.color = COLORS.LIGHT_0;
+                    end_time_text.style.fontSize = "12px";
+                    end_time_text.style.fontWeight = "400";
+                    end_time_text.style.textAlign = "left";
+                    end_time_container.appendChild( end_time_text );
+                }
+
+                // Show the enable time slot mode toggle if a day is selected
+                if( temp_search_filters.selected_day != -1 ) {
+                    let time_slot_mode_container = document.createElement( 'div' );
+                    time_slot_mode_container.style.display = "flex";
+                    time_slot_mode_container.style.alignItems = "center";
+                    time_slot_mode_container.style.justifyContent = "center";
+                    time_slot_mode_container.style.padding = "10px 0px";
+                    filter_details_container.appendChild( time_slot_mode_container );
+
+                    let time_slot_mode_toggle = document.createElement( 'input' );
+                    time_slot_mode_toggle.type = "checkbox";
+                    time_slot_mode_toggle.style.width = "20px";
+                    time_slot_mode_toggle.style.height = "20px";
+                    time_slot_mode_toggle.style.cursor = "pointer";
+                    time_slot_mode_toggle.style.alignSelf = "center";
+                    time_slot_mode_toggle.checked = temp_search_filters.in_time_slot_mode;
+                    time_slot_mode_container.appendChild( time_slot_mode_toggle );
+
+                    let time_slot_mode_text = document.createElement( 'a' );
+                    time_slot_mode_text.textContent = "Enable Time Slot Mode";
+                    time_slot_mode_text.style.color = COLORS.LIGHT_0;
+                    time_slot_mode_text.style.fontSize = "16px";
+                    time_slot_mode_text.style.fontWeight = "400";
+                    time_slot_mode_text.style.textAlign = "left";
+                    time_slot_mode_text.style.marginLeft = "5px";
+                    time_slot_mode_container.appendChild( time_slot_mode_text );
+
+                    time_slot_mode_toggle.addEventListener( 'click', function( e ) {
+                        e.stopPropagation();
+                        temp_search_filters.in_time_slot_mode = !temp_search_filters.in_time_slot_mode;
+                        refreshThisDetailsContainer();
+                    } );
+                }
+            }
+            refreshThisDetailsContainer(); // initial build
+        } 
+        else if( item.type == FILTER_TYPES.MULTI_SELECT ) {
+            item.options.forEach( option => {
+                let option_container = document.createElement( 'div' );
+                option_container.style.display = "flex";
+                option_container.style.alignItems = "center";
+                option_container.style.gap = "8px";
+                option_container.style.padding = "5px 0px";
+                option_container.style.cursor = "pointer";
+                setHoverBgColor( option_container, COLORS.SURFACE_20 );
+                filter_details_container.appendChild( option_container );
+
+                let option_checkbox_container = document.createElement( 'div' );
+                option_checkbox_container.style.width = "20px";
+                option_checkbox_container.style.flexShrink = "0";
+                option_container.appendChild( option_checkbox_container );
+
+                let option_checkbox = document.createElement( 'input' );
+                option_checkbox.type = "checkbox";
+                option_checkbox.style.width = "20px";
+                option_checkbox.style.height = "20px";
+                option_checkbox.style.cursor = "pointer";
+                option_checkbox.style.alignSelf = "flex-start";
+                option_checkbox_container.appendChild( option_checkbox );
+                option_checkbox.addEventListener( 'click', function( e ) { 
+                    e.stopPropagation();
+                    onValueChange();
+                } );
+
+                let option_text = document.createElement( 'a' );
+                option_text.textContent = option;
+                option_text.style.color = COLORS.LIGHT_0;
+                option_text.style.fontSize = "16px";
+                option_text.style.fontWeight = "400";
+                option_text.style.textAlign = "left";
+                option_text.style.marginLeft = "5px";
+                option_container.appendChild( option_text );
+
+                option_container.addEventListener( 'click', function( e ) {
+                    option_checkbox.checked = !option_checkbox.checked; 
+                    onValueChange();
+                } );
+
+                function onValueChange() {
+                    if( option_checkbox.checked ) {
+                        if( !temp_search_filters[ item.id ] ) {
+                            temp_search_filters[ item.id ] = [];
+                        }
+                        temp_search_filters[ item.id ].push( option );
+                    } else {
+                        temp_search_filters[ item.id ].splice( temp_search_filters[ item.id ].indexOf( option ), 1 );
+                    }
+                };
+            } );
+        }
+        
+        filter_header.addEventListener( 'click', function() {
+            filter_details_container.style.display = filter_details_container.style.display == "none" ? "flex" : "none";
+            if( filter_details_container.style.display == "flex" ) {
+                filter_toggle_icon.classList.remove( ...ICONS.fa_chevron_right );
+                filter_toggle_icon.classList.add( ...ICONS.fa_chevron_down );
+            } else {
+                filter_toggle_icon.classList.remove( ...ICONS.fa_chevron_down );
+                filter_toggle_icon.classList.add( ...ICONS.fa_chevron_right );
+            }
+        } );
+    } );
+
+    let apply_filters_button = document.createElement( 'div' );
+    apply_filters_button.style.margin = "10px auto";
+    apply_filters_button.style.padding = "10px";
+    apply_filters_button.style.width = "80%";
+    apply_filters_button.style.cursor = "pointer";
+    apply_filters_button.style.backgroundColor = COLORS.LIGHT_0;
+    apply_filters_button.style.color = COLORS.DARK_0;
+    apply_filters_button.style.display = "flex";
+    apply_filters_button.style.justifyContent = "center";
+    apply_filters_button.style.alignItems = "center";
+    setHoverBgColor( apply_filters_button, COLORS.PRIMARY_0 );
+    filter_menu.appendChild( apply_filters_button );
+    
+    let apply_filters_text = document.createElement( 'a' );
+    apply_filters_text.textContent = "Apply Filters";
+    apply_filters_text.style.fontSize = "14px";
+    apply_filters_text.style.fontWeight = "400";
+    apply_filters_text.style.textAlign = "center";
+    apply_filters_button.appendChild( apply_filters_text );
+
+    apply_filters_button.addEventListener( 'click', function() {
+        applyFilters( temp_search_filters );
+     } );
+}
+
+/** Opens the filter menu relative to the instigator element
+ * 
+ * @param {HTMLElement} instigator 
+ */
+function openFilterMenu( instigator ) { 
+    filter_menu.style.display = "block";
+    let instigator_rect = instigator.getBoundingClientRect();
+    let menu_rect = filter_menu.getBoundingClientRect();
+    filter_menu.style.top = ( instigator_rect.bottom + 10 ) + "px";
+    filter_menu.style.left = ( instigator_rect.left - menu_rect.width + instigator_rect.width ) + "px";
+    last_filter_menu_instigator = instigator;
+}
+
+function hideFilterMenu() {
+    filter_menu.style.display = "none";
+    last_filter_menu_instigator = null;
+}
+
+function toggleOpenFilterMenu( instigator ) {
+    if( filter_menu.style.display == "block" && last_filter_menu_instigator == instigator ) {
+        hideFilterMenu();
+    } else {
+        openFilterMenu( instigator );
+    }
+ }
+
+refreshFilterMenu( SEARCH_FILTERS );
+
+document.addEventListener( 'click', function( e ) {
+    if( filter_menu.display != "none" && !filter_menu.contains( e.target ) && e.target != last_filter_menu_instigator ) {
+        hideFilterMenu();
+    }
+} );
+
+/**
+ * @param { SearchFilter } filters 
+ */
+function applyFilters( filters ) {
+    if( filters.selected_day != -1 ) {
+        filters.start_datetime = combineDateAndTime( DATES[ filters.selected_day + 1 ], filters.start_datetime );
+        filters.end_datetime = combineDateAndTime( DATES[ filters.selected_day + 1 ], filters.end_datetime );
+    } else {
+        filters.start_datetime = new Date( "2025-03-16 00:00:00" );
+        filters.end_datetime = new Date( "2025-03-22 23:59:59" );
+    }
+    
+    if( filters.in_time_slot_mode ) {
+        time_slot_buttons_container.style.display = "flex";
+        current_time_slot_text.textContent = `${ filters.start_datetime.getTimeStringHHMM12() } - ${ filters.end_datetime.getTimeStringHHMM12() }`;
+    }
+    else {
+        time_slot_buttons_container.style.display = "none";
+    }
+
+    applied_search_filter = filters;
+    hideFilterMenu();
+    SearchEventsAndApplyFiltersFromSearchBar();
+}
+
+// #endregion
+
 // #region Lazy load events when the user scrolls down
 
 const BATCH_SIZE = 10;
 let last_loaded_event_idx = 0;
 
 function loadMoreEventCards() {
-    let events_to_load = all_gameplan_events.slice( last_loaded_event_idx, last_loaded_event_idx + BATCH_SIZE );
+    let events_to_load = filtered_events.slice( last_loaded_event_idx, last_loaded_event_idx + BATCH_SIZE );
     events_to_load.forEach( event => {
         let event_card = buildEventCard( event );
         events_container.insertBefore( event_card, sentinel );
@@ -1177,6 +1887,14 @@ observer.observe( sentinel );
 // Load the initial batch of events only for desktop layout
 // This right pane which hosts the events is hidden initially in the mobile layout
 if( current_layout == LAYOUT.DESKTOP ) {
+    loadMoreEventCards();
+}
+
+function reloadEvents() {
+    last_loaded_event_idx = 0;
+    while( events_container.firstChild && events_container.firstChild != sentinel ) {
+        events_container.removeChild( events_container.firstChild );
+    }
     loadMoreEventCards();
 }
 
