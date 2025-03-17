@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1.0";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -862,7 +862,8 @@ function ToggleFindEvents() {
 
 const DAYS = [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ];
 const DATES = [ new Date("2025-03-16"), new Date("2025-03-17"), new Date("2025-03-18"), new Date("2025-03-19"), new Date("2025-03-20"), new Date("2025-03-21"), new Date("2025-03-22") ];
-var current_selected_day = 1; // @TODO: Automatically set this to the current day (based on the dates between 2025-03-17 to 2025-03-21)
+const today = new Date();
+var current_selected_day = today < DATES[ 1 ] ? 1 : today > DATES[ 6 ] ? 6 : today.getDay();
 
 var days_container = document.createElement( 'div' );
 days_container.style.display = "flex";
@@ -1348,6 +1349,16 @@ function buildPlannedEventCard ( event_hash ) {
     card_time_to_go.style.fontWeight = "400";
     card_header_right.appendChild( card_time_to_go );
 
+    // update the time to go every minute
+    let interval_id = setInterval( function() {
+        if( !document.body.contains( card_time_to_go ) ) {
+            clearInterval( interval_id );
+            interval_id = null;
+            return;
+        }
+        card_time_to_go.textContent = GameplanUtils.getTimeToThisEventString( event );
+     }, 60000 );
+
     function addIconAndTextToMoreInfo( icon, text) 
     {
         let container = document.createElement( 'div' );
@@ -1670,13 +1681,13 @@ function refreshFilterMenu( items ) {
                     start_time_container.style.alignItems = "left";
                     time_range_container.appendChild( start_time_container );
 
-                    let range_min_time = filter_props.start_times[ temp_search_filters.selected_day ].substring( 11, 19 );
-                    let range_max_time = filter_props.end_times[ temp_search_filters.selected_day ].substring( 11, 19 );
+                    let range_min_time = filter_props.start_times[ temp_search_filters.selected_day ].substring( 11, 16 );
+                    let range_max_time = filter_props.end_times[ temp_search_filters.selected_day ].substring( 11, 16 );
                     
                     // Add 59 minutes to the min time to get the next time slot
-                    let range_next_time = new Date( "2025-03-12 " + range_min_time + ":00" );
+                    let range_next_time = new Date( "2025-03-12 " + range_min_time );
                     range_next_time = new Date( range_next_time.getTime() + 59 * 60000 );
-                    range_next_time = dateToStringStandard( range_next_time ).substring( 11, 19 );
+                    range_next_time = dateToStringStandard( range_next_time ).substring( 11, 16 );
 
                     let start_time = document.createElement( 'input' );
                     start_time.type = "time";
