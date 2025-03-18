@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.2.1";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -455,7 +455,7 @@ var pane_left = document.createElement( 'div' );
 pane_left.style.width = "35%";
 pane_left.style.height = "100%";
 pane_left.style.backgroundColor = COLORS.SURFACE_10;
-pane_left.style.overflowY = "auto";
+pane_left.style.overflowY = "hidden";
 pane_left.style.position = "relative";
 root.appendChild( pane_left );
 
@@ -475,6 +475,10 @@ root.appendChild( pane_right );
 
 var pane_left_content = document.createElement( 'div' );
 pane_left_content.style.padding = "20px";
+pane_left_content.style.overflow = "hidden";
+pane_left_content.style.height = "100%";
+pane_left_content.style.display = "flex";
+pane_left_content.style.flexDirection = "column";
 pane_left.appendChild( pane_left_content );
 
 var header = document.createElement( 'div' );
