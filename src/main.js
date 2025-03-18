@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -409,6 +409,33 @@ var hide_find_events = false;
 if( localStorage.getItem( 'hide_find_events' ) != null ) {
     hide_find_events = JSON.parse( localStorage.getItem( 'hide_find_events' ) );
 }
+
+/** Check if the given event has any conflict with the planned events
+ * 
+ * @param {GameplanEvent} event The event to check if it has any conflict with the planned events
+ * @returns {boolean} True if the event has any conflict with the planned events, false otherwise
+ */
+function HasAnyConflict( event ) {
+    return planned_events.some( hash => {
+        if( hash == event.hash ) { return false; } // Can't conflict with yourself
+        let planned_event = GameplanUtils.getFromHash( hash );
+        return planned_event.start_time < event.end_time && planned_event.end_time > event.start_time;
+    } );
+}
+
+/** Get all the hashes of the planned events that conflicts with the given event
+ * 
+ * @param {GameplanEvent} event The event to check if it has a conflict with other planned events
+ * @returns A list of hashes of planned events that conflicts with the given event
+ */
+function GetAllConflicts( event ) {
+    return planned_events.filter( hash => {
+        if( hash == event.hash ) { return false; } // Can't conflict with yourself
+        let planned_event = GameplanUtils.getFromHash( hash );
+        return planned_event.start_time < event.end_time && planned_event.end_time > event.start_time;
+    } );
+}
+
 
 // #endregion
 
@@ -1090,14 +1117,40 @@ function buildEventCard( event ) {
     event_speakers.style.marginTop = "6px";
     event_title_info_container.appendChild( event_speakers );
 
+    let event_time_and_conflicts_container = document.createElement( 'div' );
+    event_time_and_conflicts_container.style.display = "flex";
+    event_time_and_conflicts_container.style.gap = "8px";
+    event_time_and_conflicts_container.style.alignItems = "center";
+    event_time_and_conflicts_container.style.justifyContent = "left";
+    event_time_and_conflicts_container.style.marginTop = "6px";
+    event_title_info_container.appendChild( event_time_and_conflicts_container );
+
     let event_time = document.createElement( 'a' );
     event_time.textContent = `${ DAYS[ event.start_time.getDay() ] } [${ event.start_time.getTimeStringHHMM12() } - ${ event.end_time.getTimeStringHHMM12() }]`;
     event_time.style.color = COLORS.PRIMARY_50;
     event_time.style.fontSize = "13px";
     event_time.style.fontWeight = "400";
     event_time.style.textAlign = "left";
-    event_time.style.marginTop = "6px";
-    event_title_info_container.appendChild( event_time );
+    event_time_and_conflicts_container.appendChild( event_time );
+
+    let event_conflicts = document.createElement( 'a' );
+    event_conflicts.style.display = HasAnyConflict( event ) ? "block" : "none"; 
+    event_conflicts.textContent = "- has conflicts";
+    event_conflicts.style.color = COLORS.PRIMARY_50;
+    event_conflicts.style.fontSize = "13px";
+    event_conflicts.style.fontWeight = "400";
+    event_conflicts.style.textAlign = "left";
+    event_time_and_conflicts_container.appendChild( event_conflicts );
+
+    function updateConflictStatus() 
+    {
+        if( document.body.contains( event_conflicts ) ) {
+            event_conflicts.style.display = HasAnyConflict( event ) ? "block" : "none"; 
+        } else {
+            document.removeEventListener( 'plannedEventsUpdated', updateConflictStatus );
+        }
+    }
+    document.addEventListener( 'plannedEventsUpdated', updateConflictStatus );
 
     let event_subscribe_button = document.createElement('div');
     event_subscribe_button.style.width = "30px";
@@ -1335,12 +1388,22 @@ function buildPlannedEventCard ( event_hash ) {
     card_more_container.appendChild( card_more_right_container );
 
     let card_title = document.createElement( 'a' );
-    card_title.textContent = event.title;
+    card_title.textContent = event.title.trim();
     card_title.style.color = COLORS.LIGHT_0;
     card_title.style.fontSize = "18px";
     card_title.style.fontWeight = "400";
     card_title.style.textAlign = "left";
     card_header_left.appendChild( card_title );
+
+    let card_conflict = document.createElement( 'a' );
+    card_conflict.style.display = "none";
+    card_conflict.textContent = "Conflicts detected";
+    card_conflict.style.color = COLORS.PRIMARY_50;
+    card_conflict.style.fontSize = "14px";
+    card_conflict.style.fontWeight = "400";
+    card_conflict.style.textAlign = "left";
+    card_conflict.style.marginTop = "6px";
+    card_header_left.appendChild( card_conflict );
 
     let card_time_to_go = document.createElement( 'a' );
     card_time_to_go.textContent = GameplanUtils.getTimeToThisEventString( event );
@@ -1385,11 +1448,75 @@ function buildPlannedEventCard ( event_hash ) {
     addIconAndTextToMoreInfo( ICONS.fa_location, event.location );
     addIconAndTextToMoreInfo( ICONS.fa_hourglass, `${ event.start_time.getTimeStringHHMM12() } - ${ event.end_time.getTimeStringHHMM12() }` );
 
+    let card_conflict_separator = document.createElement( 'hr' );
+    card_conflict_separator.style.width = "100%";
+    card_conflict_separator.style.border = "none";
+    card_conflict_separator.style.borderTop = "1px solid " + COLORS.SURFACE_30;
+    card_conflict_separator.style.marginTop = "20px";
+    card_conflict_separator.style.display = "none";
+    card_more_left_container.appendChild( card_conflict_separator );
+
+    let card_conflict_list_title = document.createElement( 'a' );
+    card_conflict_list_title.textContent = "Conflicts:";
+    card_conflict_list_title.style.color = COLORS.LIGHT_0;
+    card_conflict_list_title.style.fontSize = "14px";
+    card_conflict_list_title.style.fontWeight = "500";
+    card_conflict_list_title.style.marginTop = "10px";
+    card_conflict_list_title.style.display = "none";
+    card_more_left_container.appendChild( card_conflict_list_title );
+
+    let card_conflict_list = document.createElement( 'div' );
+    card_conflict_list.style.display = "none";
+    card_conflict_list.style.flexDirection = "column";
+    card_conflict_list.style.alignItems = "left";
+    card_conflict_list.style.justifyContent = "center";
+    card_conflict_list.style.marginTop = "10px";
+    card_more_left_container.appendChild( card_conflict_list );
+
+    function refreshConflicts() {
+        card_conflict_list.innerHTML = "";
+        let conflicts = GetAllConflicts( event );
+        if( conflicts.length <= 0 ) {
+            card_conflict.style.display = "none";
+            card_conflict_list_title.style.display = "none";
+            card_conflict_list.style.display = "none";
+            card_conflict_separator.style.display = "none";
+        } else {
+            card_conflict_separator.style.display = "block";
+            card_conflict.style.display = "block";
+            card_conflict.textContent = `${ conflicts.length } conflict${ conflicts.length > 1 ? "s" : "" } detected`;
+            card_conflict_list_title.style.display = "block";
+            card_conflict_list.style.display = "flex";
+            card_conflict_list.innerHTML = "";
+            conflicts.forEach( conflict => { 
+                let conflict_event = GameplanUtils.getFromHash( conflict );
+                let conflict_info = document.createElement( 'a' );
+                conflict_info.textContent = `> ${ conflict_event.title.trim() }`;
+                conflict_info.style.color = COLORS.PRIMARY_50;
+                conflict_info.style.fontSize = "14px";
+                conflict_info.style.fontWeight = "400";
+                conflict_info.style.textAlign = "left";
+                conflict_info.style.display = "block";
+                conflict_info.style.textIndent = "-1.5em";
+                conflict_info.style.paddingLeft = "1.5em";
+                conflict_info.style.marginTop = "5px";
+                card_conflict_list.appendChild( conflict_info );
+            } );
+        }
+        
+    }
+    refreshConflicts();
+    document.addEventListener( 'plannedEventsUpdated', refreshConflicts );
+
     let card_learn_more_button = document.createElement( 'i' );
     card_learn_more_button.classList.add( ...ICONS.fa_ellipsis_horizontal );
     card_learn_more_button.style.color = COLORS.LIGHT_0;
     card_learn_more_button.style.fontSize = "20px";
     card_learn_more_button.style.cursor = "pointer";
+
+    // align to the top of the container
+    card_learn_more_button.style.margin = "0px 0px auto 0px";
+
     setHoverColor( card_learn_more_button, COLORS.PRIMARY_0 );
     card_more_right_container.appendChild( card_learn_more_button );
 
