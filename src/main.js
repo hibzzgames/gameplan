@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.2.2";
 
 // #region JSDoc Type definitions - to make my life easier
 
