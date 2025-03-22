@@ -7,7 +7,7 @@
 //              helps devs plan out their GDC schedule.
 //------------------------------------------------------------------------------
 
-const APP_VERSION = "1.2.2";
+const APP_VERSION = "1.2.3";
 
 // #region JSDoc Type definitions - to make my life easier
 
@@ -2076,6 +2076,161 @@ function applyFilters( filters ) {
     hideFilterMenu();
     SearchEventsAndApplyFiltersFromSearchBar();
 }
+
+// #endregion
+
+// #region Final pop-up thanking the user for using the app after 2025-03-21 23:59:59
+
+var project_end_date = new Date( "2025-03-21 23:59:59" );
+
+// add a translucent overlay to the page such that the user can't interact with the page when the popup is open
+var project_end_overlay = document.createElement( 'div' );
+project_end_overlay.style.position = "fixed";
+project_end_overlay.style.display = "block";
+project_end_overlay.style.zIndex = "25";
+project_end_overlay.style.backgroundColor = COLORS.DARK_0 + "80";
+project_end_overlay.style.width = "100%";
+project_end_overlay.style.height = "100%";
+project_end_overlay.style.top = "0px";
+project_end_overlay.style.left = "0px";
+project_end_overlay.style.backdropFilter = "blur( 2px )";
+document.body.appendChild( project_end_overlay );
+
+var project_end_popup = document.createElement( 'div' );
+project_end_popup.style.position = "fixed";
+project_end_popup.style.display = "flex";
+project_end_popup.style.flexDirection = "column";
+project_end_popup.style.zIndex = "30";
+project_end_popup.style.backgroundColor = COLORS.SURFACE_10;
+project_end_popup.style.color = COLORS.LIGHT_0;
+project_end_popup.style.width = "300px";
+project_end_popup.style.padding = "20px";
+project_end_popup.style.borderRadius = "10px";
+project_end_popup.style.boxShadow = "0px 0px 10px 0px rgba( 0, 0, 0, 0.5 )";
+project_end_popup.style.textAlign = "center";
+project_end_popup.style.left = "50%";
+project_end_popup.style.top = "50%";
+project_end_popup.style.transform = "translate( -50%, -50% )";
+root.appendChild( project_end_popup );
+
+var project_end_popup_title = document.createElement( 'a' );
+project_end_popup_title.textContent = "Gameplan has ended";
+project_end_popup_title.style.color = COLORS.PRIMARY_0;
+project_end_popup_title.style.fontFamily = FONTS.DOTO;
+project_end_popup_title.style.fontSize = "24px";
+project_end_popup_title.style.fontWeight = "500";
+project_end_popup_title.style.textAlign = "center";
+project_end_popup.appendChild( project_end_popup_title );
+
+var project_end_popup_text = document.createElement( 'a' );
+project_end_popup_text.textContent = "I hope you had a great GDC and that this tool made your GDC experience a little bit better. The page will be going down on 2025-03-28 and will return for GDC 2025. Thank you for using Gameplan!";
+project_end_popup_text.style.fontSize = "16px";
+project_end_popup_text.style.fontWeight = "400";
+project_end_popup_text.style.fontFamily = FONTS.IBM_PLEX_MONO;
+project_end_popup_text.style.textAlign = "center";
+project_end_popup_text.style.marginTop = "20px";
+project_end_popup.appendChild( project_end_popup_text );
+
+var project_end_signature = document.createElement( 'a' );
+project_end_signature.textContent = "> Hibnu";
+project_end_signature.style.fontSize = "16px";
+project_end_signature.style.fontWeight = "400";
+project_end_signature.style.textAlign = "center";
+project_end_signature.style.marginTop = "20px";
+project_end_signature.style.fontStyle = "italic";
+project_end_signature.style.fontFamily = FONTS.IBM_PLEX_MONO;
+project_end_popup.appendChild( project_end_signature );
+
+var project_end_buttons_container = document.createElement( 'div' );
+project_end_buttons_container.style.display = "flex";
+project_end_buttons_container.style.justifyContent = "center";
+project_end_buttons_container.style.alignItems = "center";
+project_end_buttons_container.style.marginTop = "20px";
+project_end_popup.appendChild( project_end_buttons_container );
+
+var project_end_open_source_button = document.createElement( 'div' );
+project_end_open_source_button.style.padding = "10px";
+project_end_open_source_button.style.cursor = "pointer";
+project_end_open_source_button.style.backgroundColor = COLORS.LIGHT_0;
+project_end_open_source_button.style.color = COLORS.DARK_0;
+project_end_open_source_button.style.borderRadius = "40px";
+project_end_open_source_button.style.margin = "0px 10px";
+project_end_open_source_button.style.display = "flex";
+project_end_open_source_button.style.justifyContent = "center";
+project_end_open_source_button.style.alignItems = "center";
+setHoverBgColor( project_end_open_source_button, COLORS.LIGHT_20 );
+project_end_buttons_container.appendChild( project_end_open_source_button );
+
+var project_end_open_source_text = document.createElement( 'i' );
+project_end_open_source_text.classList.add( ...ICONS.fa_code );
+project_end_open_source_text.style.fontSize = "16px";
+project_end_open_source_text.style.textAlign = "center";
+project_end_open_source_button.appendChild( project_end_open_source_text );
+
+var project_end_bsky_button = document.createElement( 'div' );
+project_end_bsky_button.style.padding = "10px";
+project_end_bsky_button.style.cursor = "pointer";
+project_end_bsky_button.style.backgroundColor = COLORS.LIGHT_0;
+project_end_bsky_button.style.color = COLORS.DARK_0;
+project_end_bsky_button.style.borderRadius = "40px";
+project_end_bsky_button.style.margin = "0px 10px";
+project_end_bsky_button.style.display = "flex";
+project_end_bsky_button.style.justifyContent = "center";
+project_end_bsky_button.style.alignItems = "center";
+setHoverBgColor( project_end_bsky_button, COLORS.LIGHT_20 );
+project_end_buttons_container.appendChild( project_end_bsky_button );
+
+var project_end_bsky_text = document.createElement( 'i' );
+project_end_bsky_text.classList.add( ...ICONS.fa_bluesky );
+project_end_bsky_text.style.fontSize = "16px";
+project_end_bsky_text.style.textAlign = "center";
+project_end_bsky_button.appendChild( project_end_bsky_text );
+
+var project_end_close_button = document.createElement( 'div' );
+project_end_close_button.style.padding = "10px";
+project_end_close_button.style.cursor = "pointer";
+project_end_close_button.style.backgroundColor = COLORS.PRIMARY_0;
+project_end_close_button.style.color = COLORS.DARK_0;
+project_end_close_button.style.borderRadius = "40px";
+project_end_close_button.style.margin = "0px 10px";
+project_end_close_button.style.display = "flex";
+project_end_close_button.style.justifyContent = "center";
+project_end_close_button.style.alignItems = "center";
+setHoverBgColor( project_end_close_button, COLORS.PRIMARY_20 );
+project_end_buttons_container.appendChild( project_end_close_button );
+
+var project_end_close_text = document.createElement( 'a' );
+project_end_close_text.textContent = "Close";
+project_end_close_text.style.fontSize = "16px";
+project_end_close_text.style.fontWeight = "400";
+project_end_close_text.style.fontFamily = FONTS.IBM_PLEX_MONO;
+project_end_close_text.style.textAlign = "center";
+project_end_close_text.style.margin = "0px 10px";
+project_end_close_button.appendChild( project_end_close_text );
+
+function refreshPopup() {
+    if( new Date() > project_end_date ) {
+        project_end_overlay.style.display = "block";
+        project_end_popup.style.display = "flex";
+    } else {
+        project_end_overlay.style.display = "none";
+        project_end_popup.style.display = "none";
+    }
+}
+refreshPopup();
+
+project_end_open_source_button.addEventListener( 'click', function() { 
+    window.open( "https://github.com/hibzzgames/gameplan" );
+} );
+
+project_end_bsky_button.addEventListener( 'click', function() {
+    window.open( "https://bsky.app/profile/slip.hibzz.games" );
+} );
+
+project_end_close_button.addEventListener( 'click', function() {
+    project_end_overlay.style.display = "none";
+    project_end_popup.style.display = "none";
+} );
 
 // #endregion
 
